@@ -49,6 +49,11 @@ export function CRCreateDialog({
   const [formValues, setFormValues] = useState<Record<string, any>>({})
   const [isCreating, setIsCreating] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
+  
+  // Special state for LogPilot dynamic logAlerts
+  const [logAlerts, setLogAlerts] = useState<Array<{appSelector: string, logPattern: string, alertInterval?: number}>>([
+    { appSelector: 'app="log-generator"', logPattern: 'ERROR', alertInterval: 60 }
+  ])
 
   const templates = getTemplatesForCRD(crdName)
   
@@ -121,8 +126,13 @@ export function CRCreateDialog({
     let namespaceForApi: string | undefined = undefined
     
     try {
+      // For LogPilot, merge logAlerts data
+      const finalValues = selectedTemplate.crdKind === 'LogPilot' 
+        ? { ...formValues, logAlerts }
+        : formValues
+      
       // Apply template to generate resource
-      resource = applyTemplate(selectedTemplate, formValues)
+      resource = applyTemplate(selectedTemplate, finalValues)
       
       // Determine namespace for API call
       namespaceForApi = crdData?.spec?.scope === 'Cluster' 
@@ -314,6 +324,114 @@ export function CRCreateDialog({
     }
   }
 
+  // Special LogPilot form renderer with dynamic logAlerts
+  const renderLogPilotForm = () => {
+    const basicFields = selectedTemplate?.fields.filter(field => 
+      !field.key.startsWith('appSelector') && 
+      !field.key.startsWith('logPattern') && 
+      !field.key.startsWith('alertInterval') &&
+      field.key !== 'managedBy' &&
+      field.key !== 'appName'
+    ) || []
+
+    const addLogAlert = () => {
+      setLogAlerts([...logAlerts, { appSelector: '', logPattern: '', alertInterval: undefined }])
+    }
+
+    const removeLogAlert = (index: number) => {
+      setLogAlerts(logAlerts.filter((_, i) => i !== index))
+    }
+
+    const updateLogAlert = (index: number, field: string, value: any) => {
+      const updated = [...logAlerts]
+      updated[index] = { ...updated[index], [field]: value }
+      setLogAlerts(updated)
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Basic Configuration */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">基础配置</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {basicFields.map(renderField)}
+          </div>
+        </div>
+
+        {/* Log Alerts Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium">日志告警规则</h3>
+            <Button type="button" variant="outline" size="sm" onClick={addLogAlert}>
+              <IconPlus className="w-4 h-4 mr-2" />
+              添加告警规则
+            </Button>
+          </div>
+          
+          <div className="space-y-4">
+            {logAlerts.map((alert, index) => (
+              <Card key={index} className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium">告警规则 {index + 1}</h4>
+                  {logAlerts.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeLogAlert(index)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      删除
+                    </Button>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>应用选择器 *</Label>
+                    <Input
+                      placeholder='app="my-app"'
+                      value={alert.appSelector}
+                      onChange={e => updateLogAlert(index, 'appSelector', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Loki标签选择器，如: app="my-app"
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>日志模式 *</Label>
+                    <Input
+                      placeholder="ERROR"
+                      value={alert.logPattern}
+                      onChange={e => updateLogAlert(index, 'logPattern', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      要匹配的日志模式，如: ERROR, WARN
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>告警间隔(秒)</Label>
+                    <Input
+                      type="number"
+                      placeholder="60"
+                      value={alert.alertInterval || ''}
+                      onChange={e => updateLogAlert(index, 'alertInterval', e.target.value ? Number(e.target.value) : undefined)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      可选，覆盖全局设置
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -322,7 +440,7 @@ export function CRCreateDialog({
           Create {crdData?.spec?.names?.kind || 'Resource'}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Create {crdData?.spec?.names?.kind || 'Custom Resource'}
@@ -379,7 +497,7 @@ export function CRCreateDialog({
             <div className="space-y-4">
               <Label className="text-sm font-medium">Configuration</Label>
               <div className="space-y-4">
-                {selectedTemplate.fields.map(renderField)}
+                {selectedTemplate.crdKind === 'LogPilot' ? renderLogPilotForm() : selectedTemplate.fields.map(renderField)}
               </div>
 
               {/* Validation Errors */}

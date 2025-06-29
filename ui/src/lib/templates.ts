@@ -744,50 +744,69 @@ export function applyTemplate(template: CRTemplate, values: Record<string, any>)
 
 // Special handler for LogPilot CRD to build complex logAlerts structure
 function buildLogPilotResource(parsed: Record<string, any>, values: Record<string, any>): Record<string, any> {
-  const spec: Record<string, any> = {
-    lokiURL: values.lokiURL || 'http://loki29.loki.svc.cluster.local:3100',
-    feishuWebhook: values.feishuWebhook || '',
+  const spec: Record<string, any> = {}
+
+  // Required fields
+  if (values.lokiURL) {
+    spec.lokiURL = values.lokiURL
+  }
+  if (values.feishuWebhook) {
+    spec.feishuWebhook = values.feishuWebhook
   }
 
   // Add alertInterval if provided
-  if (values.alertInterval && values.alertInterval > 0) {
+  if (values.alertInterval && Number(values.alertInterval) > 0) {
     spec.alertInterval = Number(values.alertInterval)
   }
 
-  // Build logAlerts array
+  // Build logAlerts array from dynamic values
   const logAlerts: any[] = []
   
-  // Add first alert (required)
-  if (values.appSelector1 && values.logPattern1) {
-    const alert1: any = {
-      appSelector: values.appSelector1,
-      logPattern: values.logPattern1,
+  // Handle dynamic logAlerts array
+  if (values.logAlerts && Array.isArray(values.logAlerts)) {
+    values.logAlerts.forEach((alert: any) => {
+      if (alert.appSelector && alert.logPattern) {
+        const alertObj: any = {
+          appSelector: alert.appSelector,
+          logPattern: alert.logPattern,
+        }
+        if (alert.alertInterval && Number(alert.alertInterval) > 0) {
+          alertObj.alertInterval = Number(alert.alertInterval)
+        }
+        logAlerts.push(alertObj)
+      }
+    })
+  } else {
+    // Fallback: handle old format with numbered fields
+    if (values.appSelector1 && values.logPattern1) {
+      const alert1: any = {
+        appSelector: values.appSelector1,
+        logPattern: values.logPattern1,
+      }
+      if (values.alertInterval1 && Number(values.alertInterval1) > 0) {
+        alert1.alertInterval = Number(values.alertInterval1)
+      }
+      logAlerts.push(alert1)
     }
-    if (values.alertInterval1 && values.alertInterval1 > 0) {
-      alert1.alertInterval = Number(values.alertInterval1)
-    }
-    logAlerts.push(alert1)
-  }
 
-  // Add second alert (optional)
-  if (values.appSelector2 && values.logPattern2) {
-    const alert2: any = {
-      appSelector: values.appSelector2,
-      logPattern: values.logPattern2,
+    if (values.appSelector2 && values.logPattern2) {
+      const alert2: any = {
+        appSelector: values.appSelector2,
+        logPattern: values.logPattern2,
+      }
+      if (values.alertInterval2 && Number(values.alertInterval2) > 0) {
+        alert2.alertInterval = Number(values.alertInterval2)
+      }
+      logAlerts.push(alert2)
     }
-    if (values.alertInterval2 && values.alertInterval2 > 0) {
-      alert2.alertInterval = Number(values.alertInterval2)
-    }
-    logAlerts.push(alert2)
-  }
 
-  // Add third alert (optional)
-  if (values.appSelector3 && values.logPattern3) {
-    const alert3: any = {
-      appSelector: values.appSelector3,
-      logPattern: values.logPattern3,
+    if (values.appSelector3 && values.logPattern3) {
+      const alert3: any = {
+        appSelector: values.appSelector3,
+        logPattern: values.logPattern3,
+      }
+      logAlerts.push(alert3)
     }
-    logAlerts.push(alert3)
   }
 
   if (logAlerts.length > 0) {
