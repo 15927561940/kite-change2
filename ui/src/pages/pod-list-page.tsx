@@ -7,6 +7,7 @@ import { IconServer } from '@tabler/icons-react'
 import { formatDate } from '@/lib/utils'
 import { PodStatusBadge } from '@/components/pod-status-badge'
 import { ResourceTable } from '@/components/resource-table'
+import { restartPod } from '@/lib/api'
 import { 
   Tooltip,
   TooltipContent,
@@ -58,12 +59,27 @@ export function PodListPage() {
             navigate(`/pods/${pod.metadata?.namespace}/${pod.metadata?.name}?tab=logs`)
           }
           
+          const handleRestartPod = async () => {
+            if (!pod.metadata?.namespace || !pod.metadata?.name) return
+            
+            try {
+              await restartPod(pod.metadata.namespace, pod.metadata.name)
+              console.log(`Pod ${pod.metadata.name} restart triggered successfully`)
+              // Reload the page to show updated status
+              window.location.reload()
+            } catch (error) {
+              console.error('Failed to restart pod:', error)
+            }
+          }
+          
           return (
             <PodStatusBadge 
               pod={pod}
               showHistoryButton={true}
               showLogsButton={true}
+              showRestartButton={true}
               onViewLogs={handleViewLogs}
+              onRestartPod={handleRestartPod}
             />
           )
         },

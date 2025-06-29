@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconHistory, IconAlertTriangle, IconEye, IconServer, IconRefresh } from '@tabler/icons-react'
+import { IconHistory, IconAlertTriangle, IconEye, IconServer, IconRefresh, IconReload } from '@tabler/icons-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,14 +25,18 @@ interface PodStatusBadgeProps {
   pod: any
   showHistoryButton?: boolean
   showLogsButton?: boolean
+  showRestartButton?: boolean
   onViewLogs?: () => void
+  onRestartPod?: () => void
 }
 
 export function PodStatusBadge({ 
   pod, 
   showHistoryButton = true,
   showLogsButton = true,
-  onViewLogs 
+  showRestartButton = true,
+  onViewLogs,
+  onRestartPod
 }: PodStatusBadgeProps) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const { data: podHistory, isLoading } = usePodHistory(
@@ -271,7 +275,7 @@ export function PodStatusBadge({
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <span className="text-muted-foreground">状态:</span>
-                  <span className="ml-1 font-medium">{statusInfo.phase}</span>
+                  <span className="ml-1 font-medium text-black">{statusInfo.phase}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">就绪:</span>
@@ -284,18 +288,18 @@ export function PodStatusBadge({
                 </div>
                 <div>
                   <span className="text-muted-foreground">节点:</span>
-                  <span className="ml-1 font-medium">{statusInfo.nodeName}</span>
+                  <span className="ml-1 font-medium text-black">{statusInfo.nodeName}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">IP:</span>
-                  <span className="ml-1 font-medium">{statusInfo.podIP}</span>
+                  <span className="ml-1 font-medium text-black">{statusInfo.podIP}</span>
                 </div>
               </div>
               
               {statusInfo.startTime && (
                 <div className="text-xs">
                   <span className="text-muted-foreground">启动时间:</span>
-                  <span className="ml-1">{safeFormatDistanceToNow(statusInfo.startTime, { addSuffix: true })}</span>
+                  <span className="ml-1 text-black">{safeFormatDistanceToNow(statusInfo.startTime, { addSuffix: true })}</span>
                 </div>
               )}
               
@@ -352,6 +356,25 @@ export function PodStatusBadge({
 
         {/* Action Buttons - Better Aligned */}
         <div className="flex items-center">
+          {/* Restart Button */}
+          {showRestartButton && onRestartPod && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onRestartPod}
+                  className="h-7 w-7 p-0 hover:bg-red-100 hover:text-red-700"
+                >
+                  <IconReload className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-xs font-medium text-slate-700">重启Pod</div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
           {/* Logs Button */}
           {showLogsButton && onViewLogs && (
             <Tooltip>

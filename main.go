@@ -111,6 +111,14 @@ func setupAPIRouter(r *gin.Engine, k8sClient *kube.K8sClient, promClient *promet
 		podHistoryHandler := handlers.NewPodHistoryHandler(k8sClient.ClientSet)
 		podHistoryHandler.RegisterRoutes(api)
 
+		// Pod restart handler
+		podRestartHandler := handlers.NewPodRestartHandler(k8sClient.ClientSet)
+		podRestartHandler.RegisterRoutes(api)
+
+		// Deployment restart handler
+		deploymentRestartHandler := handlers.NewDeploymentRestartHandler(k8sClient.ClientSet)
+		deploymentRestartHandler.RegisterRoutes(api)
+
 		resources.RegisterRoutes(api, k8sClient)
 	}
 }

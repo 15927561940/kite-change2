@@ -3,7 +3,7 @@ import { IconLoader, IconServer } from '@tabler/icons-react'
 import { Pod } from 'kubernetes-types/core/v1'
 import { Link, useNavigate } from 'react-router-dom'
 
-import { useResources } from '@/lib/api'
+import { useResources, restartPod } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 
 import { PodStatusBadge } from './pod-status-badge'
@@ -97,12 +97,29 @@ export function PodTable(props: {
             navigate(`/pods/${pod.metadata?.namespace}/${pod.metadata?.name}?tab=logs`)
           }
           
+          const handleRestartPod = async () => {
+            if (!pod.metadata?.namespace || !pod.metadata?.name) return
+            
+            try {
+              await restartPod(pod.metadata.namespace, pod.metadata.name)
+              // Optionally show success notification
+              console.log(`Pod ${pod.metadata.name} restart triggered successfully`)
+              // Reload the page to show updated status
+              window.location.reload()
+            } catch (error) {
+              console.error('Failed to restart pod:', error)
+              // Optionally show error notification
+            }
+          }
+          
           return (
             <PodStatusBadge 
               pod={pod}
               showHistoryButton={true}
               showLogsButton={true}
+              showRestartButton={true}
               onViewLogs={handleViewLogs}
+              onRestartPod={handleRestartPod}
             />
           )
         },

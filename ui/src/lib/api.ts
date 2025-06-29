@@ -162,18 +162,6 @@ export const scaleDeployment = async (
   return response
 }
 
-export const restartDeployment = async (
-  namespace: string,
-  name: string
-): Promise<void> => {
-  const endpoint = `/deployments/${namespace}/${name}/restart`
-  await apiClient.post(`${endpoint}`, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
-}
-
 // CRD scale and restart operations
 export const scaleCR = async (
   crd: string,
@@ -1270,5 +1258,25 @@ export const useLogsStream = (
     downloadSpeed,
     refetch,
     stopStreaming,
+  }
+}
+
+// Pod restart functionality
+export const restartPod = async (namespace: string, podName: string): Promise<void> => {
+  try {
+    await apiClient.post(`/pods/${namespace}/${podName}/restart`)
+  } catch (error) {
+    console.error('Failed to restart pod:', error)
+    throw error
+  }
+}
+
+// Deployment rolling restart functionality
+export const restartDeployment = async (namespace: string, deploymentName: string): Promise<void> => {
+  try {
+    await apiClient.post(`/deployments/${namespace}/${deploymentName}/restart`)
+  } catch (error) {
+    console.error('Failed to restart deployment:', error)
+    throw error
   }
 }
