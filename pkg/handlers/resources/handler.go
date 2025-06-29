@@ -93,11 +93,21 @@ func RegisterRoutes(group *gin.RouterGroup, k8sClient *kube.K8sClient) {
 		otherGroup.GET("/_all/:name", crHandler.Get)
 		otherGroup.PUT("/_all/:name", crHandler.Update)
 		otherGroup.DELETE("/_all/:name", crHandler.Delete)
+		// Custom routes for cluster-scoped CRs
+		otherGroup.GET("/_all/:name/related", crHandler.GetCRRelatedResources)
+		otherGroup.GET("/_all/:name/events", crHandler.GetCREvents)
+		otherGroup.POST("/_all/:name/restart", crHandler.RestartCR)
+		otherGroup.POST("/_all/:name/scale", crHandler.ScaleCR)
 
 		otherGroup.GET("/:namespace", crHandler.List)
 		otherGroup.GET("/:namespace/:name", crHandler.Get)
 		otherGroup.PUT("/:namespace/:name", crHandler.Update)
 		otherGroup.DELETE("/:namespace/:name", crHandler.Delete)
+		// Custom routes for namespaced CRs
+		otherGroup.GET("/:namespace/:name/related", crHandler.GetCRRelatedResources)
+		otherGroup.GET("/:namespace/:name/events", crHandler.GetCREvents)
+		otherGroup.POST("/:namespace/:name/restart", crHandler.RestartCR)
+		otherGroup.POST("/:namespace/:name/scale", crHandler.ScaleCR)
 	}
 }
 

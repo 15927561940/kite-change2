@@ -77,6 +77,34 @@ export const fetchDeploymentRelated = (
   return fetchAPI<DeploymentRelatedResource>(endpoint)
 }
 
+// CRD related resources
+export interface CRRelatedResource {
+  pods?: Array<any>
+  services?: Array<any>
+}
+
+export const fetchCRRelated = (
+  crd: string,
+  namespace: string | undefined,
+  name: string
+): Promise<CRRelatedResource> => {
+  const endpoint = namespace 
+    ? `/${crd}/${namespace}/${name}/related`
+    : `/${crd}/_all/${name}/related`
+  return fetchAPI<CRRelatedResource>(endpoint)
+}
+
+export const fetchCREvents = (
+  crd: string,
+  namespace: string | undefined,
+  name: string
+): Promise<{ events: Array<any> }> => {
+  const endpoint = namespace 
+    ? `/${crd}/${namespace}/${name}/events`
+    : `/${crd}/_all/${name}/events`
+  return fetchAPI<{ events: Array<any> }>(endpoint)
+}
+
 // Search API types
 export interface SearchResult {
   id: string
@@ -139,6 +167,42 @@ export const restartDeployment = async (
   name: string
 ): Promise<void> => {
   const endpoint = `/deployments/${namespace}/${name}/restart`
+  await apiClient.post(`${endpoint}`, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+// CRD scale and restart operations
+export const scaleCR = async (
+  crd: string,
+  namespace: string | undefined,
+  name: string,
+  replicas: number
+): Promise<{ message: string; resource: unknown; replicas: number }> => {
+  const endpoint = namespace 
+    ? `/${crd}/${namespace}/${name}/scale`
+    : `/${crd}/_all/${name}/scale`
+  const response = await apiClient.post<{
+    message: string
+    resource: unknown
+    replicas: number
+  }>(endpoint, {
+    replicas,
+  })
+
+  return response
+}
+
+export const restartCR = async (
+  crd: string,
+  namespace: string | undefined,
+  name: string
+): Promise<void> => {
+  const endpoint = namespace 
+    ? `/${crd}/${namespace}/${name}/restart`
+    : `/${crd}/_all/${name}/restart`
   await apiClient.post(`${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -434,6 +498,38 @@ export const useDeploymentRelated = (
     queryKey: ['deployment-related', namespace, name],
     queryFn: () => fetchDeploymentRelated(namespace, name),
     enabled: !!namespace && !!name,
+    staleTime: options?.staleTime || 1000,
+    placeholderData: (prevData) => prevData,
+    refetchInterval: options?.refreshInterval || 0,
+  })
+}
+
+export const useCRRelated = (
+  crd: string,
+  namespace: string | undefined,
+  name: string,
+  options?: { staleTime?: number; refreshInterval?: number }
+) => {
+  return useQuery({
+    queryKey: ['cr-related', crd, namespace, name],
+    queryFn: () => fetchCRRelated(crd, namespace, name),
+    enabled: !!crd && !!name,
+    staleTime: options?.staleTime || 1000,
+    placeholderData: (prevData) => prevData,
+    refetchInterval: options?.refreshInterval || 0,
+  })
+}
+
+export const useCREvents = (
+  crd: string,
+  namespace: string | undefined,
+  name: string,
+  options?: { staleTime?: number; refreshInterval?: number }
+) => {
+  return useQuery({
+    queryKey: ['cr-events', crd, namespace, name],
+    queryFn: () => fetchCREvents(crd, namespace, name),
+    enabled: !!crd && !!name,
     staleTime: options?.staleTime || 1000,
     placeholderData: (prevData) => prevData,
     refetchInterval: options?.refreshInterval || 0,

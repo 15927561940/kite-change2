@@ -3,11 +3,15 @@ package resources
 import (
 	"context"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/kube"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -376,4 +380,335 @@ func (h *CRHandler) Delete(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Custom resource deleted successfully"})
+}
+
+// GetCRRelatedResources lists resources related to a custom resource
+// such as pods, services, etc.
+func (h *CRHandler) GetCRRelatedResources(c *gin.Context) {
+	crdName := c.Param("crd")
+	name := c.Param("name")
+	namespace := c.Param("namespace")
+	ctx := c.Request.Context()
+
+	if crdName == "" || name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "CRD name and resource name are required"})
+		return
+	}
+
+	// Get the CRD definition
+	crd, err := h.getCRDByName(ctx, crdName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "CustomResourceDefinition not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get the custom resource to access its labels
+	cr := &unstructured.Unstructured{}
+	gvr := h.getGVRFromCRD(crd)
+	cr.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   gvr.Group,
+		Version: gvr.Version,
+		Kind:    crd.Spec.Names.Kind,
+	})
+
+	var namespacedName types.NamespacedName
+	if crd.Spec.Scope == apiextensionsv1.NamespaceScoped {
+		if namespace == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "namespace is required for namespaced custom resources"})
+			return
+		}
+		namespacedName = types.NamespacedName{Namespace: namespace, Name: name}
+	} else {
+		namespacedName = types.NamespacedName{Name: name}
+	}
+
+	if err := h.K8sClient.Client.Get(ctx, namespacedName, cr); err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Custom resource not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	relatedResources := gin.H{}
+
+	// Try to find related pods based on labels
+	if labels := cr.GetLabels(); labels != nil {
+		var relatedPods []corev1.Pod
+		podList := &corev1.PodList{}
+		podListOpts := &client.ListOptions{}
+		
+		if crd.Spec.Scope == apiextensionsv1.NamespaceScoped {
+			podListOpts.Namespace = namespace
+		}
+
+		if err := h.K8sClient.Client.List(ctx, podList, podListOpts); err == nil {
+			for _, pod := range podList.Items {
+				if podLabels := pod.GetLabels(); podLabels != nil {
+					// Check if pod labels match CR labels (basic matching)
+					hasMatch := false
+					for crKey, crValue := range labels {
+						if podValue, exists := podLabels[crKey]; exists && podValue == crValue {
+							hasMatch = true
+							break
+						}
+					}
+					// Also check for common patterns like app, component, etc
+					if !hasMatch {
+						commonLabels := []string{"app", "component", "name", "instance"}
+						for _, commonLabel := range commonLabels {
+							if crValue, crExists := labels[commonLabel]; crExists {
+								if podValue, podExists := podLabels[commonLabel]; podExists && podValue == crValue {
+									hasMatch = true
+									break
+								}
+							}
+						}
+					}
+					if hasMatch {
+						relatedPods = append(relatedPods, pod)
+					}
+				}
+			}
+		}
+		relatedResources["pods"] = relatedPods
+	}
+
+	// Try to find related services
+	if crd.Spec.Scope == apiextensionsv1.NamespaceScoped {
+		var relatedServices []corev1.Service
+		serviceList := &corev1.ServiceList{}
+		serviceListOpts := &client.ListOptions{
+			Namespace: namespace,
+		}
+
+		if err := h.K8sClient.Client.List(ctx, serviceList, serviceListOpts); err == nil {
+			crLabels := cr.GetLabels()
+			for _, service := range serviceList.Items {
+				if service.Spec.Selector != nil && crLabels != nil {
+					serviceSelector := labels.SelectorFromSet(service.Spec.Selector)
+					if serviceSelector.Matches(labels.Set(crLabels)) {
+						relatedServices = append(relatedServices, service)
+					}
+				}
+			}
+		}
+		relatedResources["services"] = relatedServices
+	}
+
+	c.JSON(http.StatusOK, relatedResources)
+}
+
+// RestartCR restarts a custom resource by updating its restart annotation
+func (h *CRHandler) RestartCR(c *gin.Context) {
+	crdName := c.Param("crd")
+	name := c.Param("name")
+	namespace := c.Param("namespace")
+	ctx := c.Request.Context()
+
+	if crdName == "" || name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "CRD name and resource name are required"})
+		return
+	}
+
+	// Get the CRD definition
+	crd, err := h.getCRDByName(ctx, crdName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "CustomResourceDefinition not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get the custom resource
+	cr := &unstructured.Unstructured{}
+	gvr := h.getGVRFromCRD(crd)
+	cr.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   gvr.Group,
+		Version: gvr.Version,
+		Kind:    crd.Spec.Names.Kind,
+	})
+
+	var namespacedName types.NamespacedName
+	if crd.Spec.Scope == apiextensionsv1.NamespaceScoped {
+		if namespace == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "namespace is required for namespaced custom resources"})
+			return
+		}
+		namespacedName = types.NamespacedName{Namespace: namespace, Name: name}
+	} else {
+		namespacedName = types.NamespacedName{Name: name}
+	}
+
+	if err := h.K8sClient.Client.Get(ctx, namespacedName, cr); err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Custom resource not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Add restart annotation
+	annotations := cr.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations["kite.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+	cr.SetAnnotations(annotations)
+
+	if err := h.K8sClient.Client.Update(ctx, cr); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restart custom resource: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Custom resource restarted successfully",
+	})
+}
+
+// ScaleCR scales a custom resource if it supports replicas
+func (h *CRHandler) ScaleCR(c *gin.Context) {
+	crdName := c.Param("crd")
+	name := c.Param("name")
+	namespace := c.Param("namespace")
+	ctx := c.Request.Context()
+
+	if crdName == "" || name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "CRD name and resource name are required"})
+		return
+	}
+
+	// Parse the request body to get the desired replica count
+	var scaleRequest struct {
+		Replicas *int32 `json:"replicas" binding:"required,min=0"`
+	}
+
+	if err := c.ShouldBindJSON(&scaleRequest); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	if scaleRequest.Replicas == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "replicas field is required"})
+		return
+	}
+
+	// Get the CRD definition
+	crd, err := h.getCRDByName(ctx, crdName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "CustomResourceDefinition not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get the custom resource
+	cr := &unstructured.Unstructured{}
+	gvr := h.getGVRFromCRD(crd)
+	cr.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   gvr.Group,
+		Version: gvr.Version,
+		Kind:    crd.Spec.Names.Kind,
+	})
+
+	var namespacedName types.NamespacedName
+	if crd.Spec.Scope == apiextensionsv1.NamespaceScoped {
+		if namespace == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "namespace is required for namespaced custom resources"})
+			return
+		}
+		namespacedName = types.NamespacedName{Namespace: namespace, Name: name}
+	} else {
+		namespacedName = types.NamespacedName{Name: name}
+	}
+
+	if err := h.K8sClient.Client.Get(ctx, namespacedName, cr); err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Custom resource not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Try to update replicas field - check common paths
+	spec, found, err := unstructured.NestedMap(cr.Object, "spec")
+	if err != nil || !found {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This custom resource doesn't support scaling (no spec field)"})
+		return
+	}
+
+	// Check if replicas field exists
+	if _, exists := spec["replicas"]; !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "This custom resource doesn't support scaling (no replicas field)"})
+		return
+	}
+
+	// Update the replica count
+	if err := unstructured.SetNestedField(cr.Object, int64(*scaleRequest.Replicas), "spec", "replicas"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update replicas field: " + err.Error()})
+		return
+	}
+
+	// Update the custom resource
+	if err := h.K8sClient.Client.Update(ctx, cr); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scale custom resource: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Custom resource scaled successfully",
+		"resource": cr,
+		"replicas": *scaleRequest.Replicas,
+	})
+}
+
+// GetCREvents gets events related to a custom resource
+func (h *CRHandler) GetCREvents(c *gin.Context) {
+	crdName := c.Param("crd")
+	name := c.Param("name")
+	namespace := c.Param("namespace")
+	ctx := c.Request.Context()
+
+	if crdName == "" || name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "CRD name and resource name are required"})
+		return
+	}
+
+	// Get events related to this custom resource
+	eventList := &corev1.EventList{}
+	eventListOpts := &client.ListOptions{}
+	
+	if namespace != "" {
+		eventListOpts.Namespace = namespace
+	}
+
+	if err := h.K8sClient.Client.List(ctx, eventList, eventListOpts); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list events: " + err.Error()})
+		return
+	}
+
+	// Filter events that are related to this custom resource
+	var relatedEvents []corev1.Event
+	for _, event := range eventList.Items {
+		if event.InvolvedObject.Name == name &&
+			(namespace == "" || event.InvolvedObject.Namespace == namespace) &&
+			strings.Contains(event.InvolvedObject.Kind, crdName) {
+			relatedEvents = append(relatedEvents, event)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"events": relatedEvents,
+	})
 }
