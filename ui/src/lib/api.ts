@@ -1271,7 +1271,7 @@ export const restartPod = async (namespace: string, podName: string): Promise<vo
   }
 }
 
-// Deployment rolling restart functionality
+// Deployment rolling restart functionality - reuses existing API
 export const restartDeployment = async (namespace: string, deploymentName: string): Promise<void> => {
   try {
     await apiClient.post(`/deployments/${namespace}/${deploymentName}/restart`)
