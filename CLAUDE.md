@@ -55,6 +55,9 @@ pnpm lint
 
 # Code formatting
 pnpm format
+
+# Preview production build
+pnpm preview
 ```
 
 ### Backend Commands
@@ -77,8 +80,11 @@ make lint
 # Format all code
 make format
 
-# Pre-commit checks
+# Pre-commit checks (format + lint)
 make pre-commit
+
+# Install dependencies
+make deps
 ```
 
 ## Key Technical Details

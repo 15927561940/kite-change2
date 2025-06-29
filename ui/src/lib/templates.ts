@@ -462,14 +462,14 @@ export const CRD_TEMPLATES: Record<string, CRTemplate[]> = {
   ],
 
   // RAG Log Pilot (实际的CRD结构)
-  'raglogpilots.log.aiops.com.aiops.com': [
+  'raglogpilots.log.aiops.com': [
     {
       name: 'RAG Log Pilot Sample',
       description: 'A sample RAG Log Pilot for AI log analysis',
       crdKind: 'RagLogPilot',
-      apiVersion: 'log.aiops.com.aiops.com/v1',
+      apiVersion: 'log.aiops.com/v1',
       template: {
-        apiVersion: 'log.aiops.com.aiops.com/v1',
+        apiVersion: 'log.aiops.com/v1',
         kind: 'RagLogPilot',
         metadata: {
           name: '{{name}}',
