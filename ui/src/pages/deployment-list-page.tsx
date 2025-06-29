@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { DeploymentStatusIcon } from '@/components/deployment-status-icon'
 import { DeploymentCreateDialog } from '@/components/editors/deployment-create-dialog'
 import { ResourceTable } from '@/components/resource-table'
-import { restartDeployment } from '@/lib/api'
+import { restartDeployment, restartDeploymentsBatch } from '@/lib/api'
 import { 
   Tooltip,
   TooltipContent,
@@ -140,6 +140,30 @@ export function DeploymentListPage() {
     navigate(`/deployments/${namespace}/${deployment.metadata?.name}`)
   }
 
+  // Handle batch actions
+  const handleBatchAction = useCallback(async (selectedDeployments: Deployment[], action: string) => {
+    if (action === 'restart') {
+      try {
+        const deploymentList = selectedDeployments.map(deployment => ({
+          namespace: deployment.metadata!.namespace!,
+          name: deployment.metadata!.name!
+        }))
+        
+        await restartDeploymentsBatch(deploymentList)
+        console.log(`Batch rolling restart triggered for ${deploymentList.length} deployments`)
+        // Reload the page to show updated status
+        window.location.reload()
+      } catch (error) {
+        console.error('Failed to restart deployments batch:', error)
+      }
+    }
+  }, [])
+
+  // Define batch actions
+  const batchActions = useMemo(() => [
+    { label: '批量滚动重启', action: 'restart', variant: 'destructive' as const }
+  ], [])
+
   return (
     <>
       <ResourceTable
@@ -148,6 +172,9 @@ export function DeploymentListPage() {
         searchQueryFilter={deploymentSearchFilter}
         showCreateButton={true}
         onCreateClick={handleCreateClick}
+        enableRowSelection={true}
+        onBatchAction={handleBatchAction}
+        batchActions={batchActions}
       />
 
       <DeploymentCreateDialog

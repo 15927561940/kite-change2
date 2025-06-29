@@ -7,7 +7,7 @@ import { IconServer } from '@tabler/icons-react'
 import { formatDate } from '@/lib/utils'
 import { PodStatusBadge } from '@/components/pod-status-badge'
 import { ResourceTable } from '@/components/resource-table'
-import { restartPod } from '@/lib/api'
+import { restartPod, restartPodsBatch } from '@/lib/api'
 import { 
   Tooltip,
   TooltipContent,
@@ -142,12 +142,39 @@ export function PodListPage() {
     )
   }, [])
 
+  // Handle batch actions
+  const handleBatchAction = useCallback(async (selectedPods: Pod[], action: string) => {
+    if (action === 'restart') {
+      try {
+        const podList = selectedPods.map(pod => ({
+          namespace: pod.metadata!.namespace!,
+          name: pod.metadata!.name!
+        }))
+        
+        await restartPodsBatch(podList)
+        console.log(`Batch restart triggered for ${podList.length} pods`)
+        // Reload the page to show updated status
+        window.location.reload()
+      } catch (error) {
+        console.error('Failed to restart pods batch:', error)
+      }
+    }
+  }, [])
+
+  // Define batch actions
+  const batchActions = useMemo(() => [
+    { label: '批量重启', action: 'restart', variant: 'destructive' as const }
+  ], [])
+
   return (
     <ResourceTable<Pod>
       resourceName="Pods"
       columns={columns}
       clusterScope={false}
       searchQueryFilter={podSearchFilter}
+      enableRowSelection={true}
+      onBatchAction={handleBatchAction}
+      batchActions={batchActions}
     />
   )
 }

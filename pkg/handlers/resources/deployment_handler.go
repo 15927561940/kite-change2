@@ -2,7 +2,9 @@ package resources
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -170,4 +173,119 @@ func (h *DeploymentHandler) registerCustomRoutes(group *gin.RouterGroup) {
 	group.GET("/:namespace/:name/related", h.ListDeploymentRelatedResources)
 	group.POST("/:namespace/:name/scale", h.ScaleDeployment)
 	group.POST("/:namespace/:name/restart", h.RestartDeployment)
+	group.POST("/batch/restart", h.RestartDeploymentsBatch)
+}
+
+// BatchDeploymentRestartRequest represents the request body for batch deployment restart
+type BatchDeploymentRestartRequest struct {
+	Deployments []DeploymentIdentifier `json:"deployments" binding:"required"`
+}
+
+// DeploymentIdentifier represents a deployment to be restarted
+type DeploymentIdentifier struct {
+	Namespace string `json:"namespace" binding:"required"`
+	Name      string `json:"name" binding:"required"`
+}
+
+// DeploymentRestartResult represents the result of restarting a single deployment
+type DeploymentRestartResult struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	Success   bool   `json:"success"`
+	Error     string `json:"error,omitempty"`
+}
+
+// RestartDeploymentsBatch restarts multiple deployments concurrently
+func (h *DeploymentHandler) RestartDeploymentsBatch(c *gin.Context) {
+	var req BatchDeploymentRestartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid request body: %v", err)})
+		return
+	}
+
+	if len(req.Deployments) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No deployments specified for restart"})
+		return
+	}
+
+	klog.Infof("Starting batch restart for %d deployments", len(req.Deployments))
+
+	// Use a context with timeout for all operations
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
+	defer cancel()
+
+	// Channel to collect results
+	resultChan := make(chan DeploymentRestartResult, len(req.Deployments))
+	var wg sync.WaitGroup
+
+	// Process each deployment restart concurrently
+	for _, deployment := range req.Deployments {
+		wg.Add(1)
+		go func(deployment DeploymentIdentifier) {
+			defer wg.Done()
+			result := h.restartSingleDeployment(ctx, deployment.Namespace, deployment.Name)
+			resultChan <- result
+		}(deployment)
+	}
+
+	// Wait for all goroutines to complete
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect results
+	var results []DeploymentRestartResult
+	var successCount, failureCount int
+
+	for result := range resultChan {
+		results = append(results, result)
+		if result.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+
+	klog.Infof("Batch deployment restart completed: %d successful, %d failed", successCount, failureCount)
+
+	// Return response
+	response := gin.H{
+		"message":      fmt.Sprintf("Batch deployment restart completed: %d successful, %d failed", successCount, failureCount),
+		"total":        len(req.Deployments),
+		"successful":   successCount,
+		"failed":       failureCount,
+		"results":      results,
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+
+	if failureCount > 0 {
+		c.JSON(http.StatusPartialContent, response)
+	} else {
+		c.JSON(http.StatusOK, response)
+	}
+}
+
+// restartSingleDeployment restarts a single deployment and returns the result
+func (h *DeploymentHandler) restartSingleDeployment(ctx context.Context, namespace, name string) DeploymentRestartResult {
+	result := DeploymentRestartResult{
+		Namespace: namespace,
+		Name:      name,
+		Success:   false,
+	}
+
+	// Restart the deployment using existing Restart method
+	if err := h.Restart(ctx, namespace, name); err != nil {
+		if errors.IsNotFound(err) {
+			result.Error = "Deployment not found"
+		} else {
+			result.Error = fmt.Sprintf("Failed to restart deployment: %v", err)
+		}
+		klog.Errorf("Failed to restart deployment %s/%s: %v", namespace, name, err)
+		return result
+	}
+
+	result.Success = true
+	klog.Infof("Successfully triggered restart for deployment %s/%s", namespace, name)
+	return result
 }

@@ -10,16 +10,18 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   PaginationState,
+  RowSelectionState,
   SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { Box, Database, Plus, RotateCcw, Search, XCircle } from 'lucide-react'
+import { Box, Database, Plus, RotateCcw, Search, XCircle, CheckSquare, Square, MinusSquare } from 'lucide-react'
 
 import { ResourceType } from '@/types/api'
 import { useResources } from '@/lib/api'
 import { debounce } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -49,6 +51,9 @@ export interface ResourceTableProps<T> {
   showCreateButton?: boolean // If true, show create button
   onCreateClick?: () => void // Callback for create button click
   customActions?: React.ReactNode // Custom action buttons
+  enableRowSelection?: boolean // If true, enable row selection with checkboxes
+  onBatchAction?: (selectedRows: T[], action: string) => void // Callback for batch actions
+  batchActions?: Array<{ label: string; action: string; variant?: 'default' | 'destructive' }> // Available batch actions
 }
 
 export function ResourceTable<T>({
@@ -60,9 +65,13 @@ export function ResourceTable<T>({
   showCreateButton = false,
   onCreateClick,
   customActions,
+  enableRowSelection = false,
+  onBatchAction,
+  batchActions = [],
 }: ResourceTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('')
   const [pagination, setPagination] = useState<PaginationState>({
@@ -128,8 +137,40 @@ export function ResourceTable<T>({
     [setSelectedNamespace, pagination.pageSize]
   )
 
-  // Add namespace column when showing all namespaces
+  // Add namespace column when showing all namespaces and selection column when enabled
   const enhancedColumns = useMemo(() => {
+    let newColumns = [...columns]
+
+    // Add selection column if enabled
+    if (enableRowSelection) {
+      const selectionColumn = {
+        id: 'select',
+        header: ({ table }: { table: any }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() && "indeterminate")
+            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }: { row: any }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+        size: 40,
+      }
+      
+      // Insert selection column at the beginning
+      newColumns = [selectionColumn, ...newColumns]
+    }
+
     // Only add namespace column if not cluster scope, showing all namespaces,
     // and there isn't already a namespace column in the provided columns
     if (!clusterScope && selectedNamespace === '_all') {
@@ -163,14 +204,13 @@ export function ResourceTable<T>({
           ),
         }
 
-        // Insert namespace column after the first column (typically name)
-        const newColumns = [...columns]
-        newColumns.splice(1, 0, namespaceColumn)
-        return newColumns
+        // Insert namespace column after the selection column (if exists) and first column (typically name)
+        const insertIndex = enableRowSelection ? 2 : 1
+        newColumns.splice(insertIndex, 0, namespaceColumn)
       }
     }
-    return columns
-  }, [columns, clusterScope, selectedNamespace])
+    return newColumns
+  }, [columns, clusterScope, selectedNamespace, enableRowSelection])
 
   // Memoize data to prevent unnecessary re-renders
   const memoizedData = useMemo(() => (data || []) as T[], [data])
@@ -187,9 +227,12 @@ export function ResourceTable<T>({
     getFacetedUniqueValues: getFacetedUniqueValues(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: enableRowSelection,
     state: {
       sorting,
       columnFilters,
+      rowSelection,
       globalFilter: debouncedSearchQuery, // Use debounced query for filtering
       pagination,
     },
@@ -230,6 +273,68 @@ export function ResourceTable<T>({
   const hasActiveFilters = useMemo(() => {
     return Boolean(debouncedSearchQuery) || columnFilters.length > 0
   }, [debouncedSearchQuery, columnFilters])
+
+  // Get selected rows data
+  const selectedRows = useMemo(() => {
+    return table.getSelectedRowModel().rows.map(row => row.original)
+  }, [table.getSelectedRowModel().rows])
+
+  // Handle batch action
+  const handleBatchAction = useCallback((action: string) => {
+    if (onBatchAction && selectedRows.length > 0) {
+      onBatchAction(selectedRows, action)
+      // Clear selection after action
+      setRowSelection({})
+    }
+  }, [onBatchAction, selectedRows])
+
+  // Handle select all filtered rows
+  const handleSelectAllFiltered = useCallback(() => {
+    const filteredRows = table.getFilteredRowModel().rows
+    const newSelection: RowSelectionState = {}
+    filteredRows.forEach(row => {
+      newSelection[row.id] = true
+    })
+    setRowSelection(newSelection)
+  }, [table])
+
+  // Handle deselect all
+  const handleDeselectAll = useCallback(() => {
+    setRowSelection({})
+  }, [])
+
+  // Handle toggle selection (select all if none selected, deselect all if any selected)
+  const handleToggleSelection = useCallback(() => {
+    const filteredRows = table.getFilteredRowModel().rows
+    const selectedRowsCount = Object.keys(rowSelection).length
+    
+    if (selectedRowsCount === 0) {
+      // Select all filtered rows
+      const newSelection: RowSelectionState = {}
+      filteredRows.forEach(row => {
+        newSelection[row.id] = true
+      })
+      setRowSelection(newSelection)
+    } else {
+      // Deselect all
+      setRowSelection({})
+    }
+  }, [table, rowSelection])
+
+  // Get selection state for icons
+  const getSelectionState = useCallback(() => {
+    const filteredRows = table.getFilteredRowModel().rows
+    const selectedRowsCount = Object.keys(rowSelection).length
+    const filteredRowsCount = filteredRows.length
+    
+    if (selectedRowsCount === 0) {
+      return 'none'
+    } else if (selectedRowsCount === filteredRowsCount) {
+      return 'all'
+    } else {
+      return 'some'
+    }
+  }, [table, rowSelection])
 
   // Render empty state based on condition
   const renderEmptyState = () => {
@@ -434,6 +539,25 @@ export function ResourceTable<T>({
             )}
           </div>
 
+          {/* Quick Selection Indicator */}
+          {enableRowSelection && selectedRows.length > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-md border border-blue-200">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleSelection}
+                className="h-7 px-2"
+                title={getSelectionState() === 'all' ? '取消全选' : '全选当前页'}
+              >
+                {getSelectionState() === 'all' && <CheckSquare className="w-4 h-4 text-blue-600" />}
+                {getSelectionState() === 'some' && <MinusSquare className="w-4 h-4 text-blue-600" />}
+              </Button>
+              <span className="text-xs text-blue-700 font-medium">
+                已选 {selectedRows.length}
+              </span>
+            </div>
+          )}
+
           {showCreateButton && onCreateClick && (
             <Button onClick={onCreateClick} className="gap-1">
               <Plus className="h-2 w-2" />
@@ -444,6 +568,60 @@ export function ResourceTable<T>({
           {customActions}
         </div>
       </div>
+
+      {/* Batch Selection Toolbar */}
+      {enableRowSelection && data && (data as T[]).length > 0 && (
+        <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAllFiltered}
+                className="h-8"
+              >
+                <CheckSquare className="w-4 h-4 mr-1" />
+                全选当前页 ({table.getFilteredRowModel().rows.length})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeselectAll}
+                className="h-8"
+                disabled={selectedRows.length === 0}
+              >
+                <Square className="w-4 h-4 mr-1" />
+                清除选择
+              </Button>
+            </div>
+            
+            {selectedRows.length > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-md">
+                <span className="text-sm font-medium text-blue-800">
+                  已选择 {selectedRows.length} 项
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Batch Actions in Toolbar */}
+          {selectedRows.length > 0 && (
+            <div className="flex items-center gap-2">
+              {batchActions.map((action) => (
+                <Button
+                  key={action.action}
+                  variant={action.variant || 'default'}
+                  size="sm"
+                  onClick={() => handleBatchAction(action.action)}
+                  className="h-8"
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Loading indicator for refetch */}
       {isLoading && data && (data as T[]).length > 0 && (

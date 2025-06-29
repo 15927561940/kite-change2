@@ -1280,3 +1280,23 @@ export const restartDeployment = async (namespace: string, deploymentName: strin
     throw error
   }
 }
+
+// Batch restart pods functionality
+export const restartPodsBatch = async (pods: Array<{ namespace: string; name: string }>): Promise<void> => {
+  try {
+    await apiClient.post('/pods/batch/restart', { pods })
+  } catch (error) {
+    console.error('Failed to restart pods batch:', error)
+    throw error
+  }
+}
+
+// Batch restart deployments functionality
+export const restartDeploymentsBatch = async (deployments: Array<{ namespace: string; name: string }>): Promise<void> => {
+  try {
+    await apiClient.post('/deployments/batch/restart', { deployments })
+  } catch (error) {
+    console.error('Failed to restart deployments batch:', error)
+    throw error
+  }
+}
