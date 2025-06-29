@@ -91,6 +91,7 @@ func RegisterRoutes(group *gin.RouterGroup, k8sClient *kube.K8sClient) {
 		otherGroup.GET("", crHandler.List)
 		otherGroup.GET("/_all", crHandler.List)
 		otherGroup.GET("/_all/:name", crHandler.Get)
+		otherGroup.POST("/_all", crHandler.Create)  // 添加集群级别CRD创建路由
 		otherGroup.PUT("/_all/:name", crHandler.Update)
 		otherGroup.DELETE("/_all/:name", crHandler.Delete)
 		// Custom routes for cluster-scoped CRs
@@ -101,6 +102,7 @@ func RegisterRoutes(group *gin.RouterGroup, k8sClient *kube.K8sClient) {
 
 		otherGroup.GET("/:namespace", crHandler.List)
 		otherGroup.GET("/:namespace/:name", crHandler.Get)
+		otherGroup.POST("/:namespace", crHandler.Create)  // 添加命名空间级别CRD创建路由
 		otherGroup.PUT("/:namespace/:name", crHandler.Update)
 		otherGroup.DELETE("/:namespace/:name", crHandler.Delete)
 		// Custom routes for namespaced CRs
