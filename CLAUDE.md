@@ -152,3 +152,23 @@ Key environment variables for development:
   - Status parsing attempts common patterns (phase, conditions, ready)
   - Related pods discovered via label matching
 - Complete integration with existing components (Terminal, LogViewer, PodMonitoring, etc.)
+
+### CRD Creation and Management
+- **Template System** (`ui/src/lib/templates.ts`):
+  - Pre-defined templates for common CRDs (Argo Rollouts, Istio, Prometheus, Cert-Manager, RAGLogPilot)
+  - Dynamic form generation based on template fields
+  - Field validation with custom rules
+  - Template variable substitution
+- **Create Dialog** (`ui/src/components/cr-create-dialog.tsx`):
+  - Multi-template selection with descriptions
+  - Dynamic form fields (string, number, boolean, select)
+  - Real-time validation with error display
+  - Support for both namespaced and cluster-scoped resources
+- **Enhanced Delete Confirmation**:
+  - Red-themed warning dialog for dangerous operations
+  - Resource name confirmation required
+  - Compact design as requested
+- **Integrated UI**:
+  - Create buttons in CRD list pages
+  - Template-based resource creation
+  - Automatic refresh after operations

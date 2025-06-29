@@ -48,6 +48,7 @@ export interface ResourceTableProps<T> {
   searchQueryFilter?: (item: T, query: string) => boolean // Custom filter function
   showCreateButton?: boolean // If true, show create button
   onCreateClick?: () => void // Callback for create button click
+  customActions?: React.ReactNode // Custom action buttons
 }
 
 export function ResourceTable<T>({
@@ -58,6 +59,7 @@ export function ResourceTable<T>({
   searchQueryFilter,
   showCreateButton = false,
   onCreateClick,
+  customActions,
 }: ResourceTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -438,6 +440,8 @@ export function ResourceTable<T>({
               New
             </Button>
           )}
+          
+          {customActions}
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { CustomResource, ResourceType } from '@/types/api'
 import { useResource } from '@/lib/api'
 import { getAge } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { CRCreateDialog } from '@/components/cr-create-dialog'
 import { ResourceTable } from '@/components/resource-table'
 
 export function CRListPage() {
@@ -133,6 +134,16 @@ export function CRListPage() {
       columns={columns}
       clusterScope={crdData.spec.scope === 'Cluster'}
       searchQueryFilter={searchQueryFilter}
+      customActions={
+        <CRCreateDialog
+          crdName={crd!}
+          crdData={crdData}
+          onSuccess={() => {
+            // Refresh the resource list
+            window.location.reload()
+          }}
+        />
+      }
     />
   )
 }

@@ -6,6 +6,27 @@ export interface ResourceTemplate {
   yaml: string
 }
 
+// CRD resource templates for common use cases
+export interface CRTemplate {
+  name: string
+  description: string
+  crdKind: string
+  apiVersion: string
+  template: Record<string, any>
+  fields: TemplateField[]
+}
+
+export interface TemplateField {
+  key: string
+  label: string
+  type: 'string' | 'number' | 'boolean' | 'select'
+  required: boolean
+  default?: any
+  description?: string
+  options?: { label: string; value: any }[]
+  placeholder?: string
+}
+
 export const resourceTemplates: ResourceTemplate[] = [
   {
     name: 'Pod',
@@ -233,4 +254,382 @@ export const getTemplateByName = (
 
 export const getTemplateNames = (): string[] => {
   return resourceTemplates.map((template) => template.name)
+}
+
+// Common CRD templates
+export const CRD_TEMPLATES: Record<string, CRTemplate[]> = {
+  // Argo Rollouts
+  'rollouts.argoproj.io': [
+    {
+      name: 'Basic Rollout',
+      description: 'A basic Argo Rollout with blue-green deployment',
+      crdKind: 'Rollout',
+      apiVersion: 'argoproj.io/v1alpha1',
+      template: {
+        apiVersion: 'argoproj.io/v1alpha1',
+        kind: 'Rollout',
+        metadata: {
+          name: '{{name}}',
+          namespace: '{{namespace}}',
+        },
+        spec: {
+          replicas: '{{replicas}}',
+          strategy: {
+            blueGreen: {
+              activeService: '{{activeService}}',
+              previewService: '{{previewService}}',
+              autoPromotionEnabled: '{{autoPromotion}}',
+              scaleDownDelaySeconds: 30,
+            },
+          },
+          selector: {
+            matchLabels: {
+              app: '{{name}}',
+            },
+          },
+          template: {
+            metadata: {
+              labels: {
+                app: '{{name}}',
+              },
+            },
+            spec: {
+              containers: [
+                {
+                  name: '{{name}}',
+                  image: '{{image}}',
+                  ports: [
+                    {
+                      containerPort: '{{port}}',
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+      fields: [
+        { key: 'name', label: 'Name', type: 'string', required: true, placeholder: 'my-rollout' },
+        { key: 'namespace', label: 'Namespace', type: 'string', required: true, default: 'default' },
+        { key: 'replicas', label: 'Replicas', type: 'number', required: true, default: 3 },
+        { key: 'image', label: 'Container Image', type: 'string', required: true, placeholder: 'nginx:1.20' },
+        { key: 'port', label: 'Container Port', type: 'number', required: true, default: 80 },
+        { key: 'activeService', label: 'Active Service', type: 'string', required: true, placeholder: 'my-rollout-active' },
+        { key: 'previewService', label: 'Preview Service', type: 'string', required: true, placeholder: 'my-rollout-preview' },
+        { key: 'autoPromotion', label: 'Auto Promotion', type: 'boolean', required: false, default: false },
+      ],
+    },
+  ],
+
+  // Istio VirtualService
+  'virtualservices.networking.istio.io': [
+    {
+      name: 'Basic VirtualService',
+      description: 'A basic Istio VirtualService for HTTP routing',
+      crdKind: 'VirtualService',
+      apiVersion: 'networking.istio.io/v1beta1',
+      template: {
+        apiVersion: 'networking.istio.io/v1beta1',
+        kind: 'VirtualService',
+        metadata: {
+          name: '{{name}}',
+          namespace: '{{namespace}}',
+        },
+        spec: {
+          hosts: ['{{host}}'],
+          gateways: ['{{gateway}}'],
+          http: [
+            {
+              match: [
+                {
+                  uri: {
+                    prefix: '{{pathPrefix}}',
+                  },
+                },
+              ],
+              route: [
+                {
+                  destination: {
+                    host: '{{destinationHost}}',
+                    port: {
+                      number: '{{destinationPort}}',
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+      fields: [
+        { key: 'name', label: 'Name', type: 'string', required: true, placeholder: 'my-virtualservice' },
+        { key: 'namespace', label: 'Namespace', type: 'string', required: true, default: 'default' },
+        { key: 'host', label: 'Host', type: 'string', required: true, placeholder: 'example.com' },
+        { key: 'gateway', label: 'Gateway', type: 'string', required: true, placeholder: 'my-gateway' },
+        { key: 'pathPrefix', label: 'Path Prefix', type: 'string', required: true, default: '/' },
+        { key: 'destinationHost', label: 'Destination Host', type: 'string', required: true, placeholder: 'my-service' },
+        { key: 'destinationPort', label: 'Destination Port', type: 'number', required: true, default: 80 },
+      ],
+    },
+  ],
+
+  // Prometheus ServiceMonitor
+  'servicemonitors.monitoring.coreos.com': [
+    {
+      name: 'Basic ServiceMonitor',
+      description: 'A basic Prometheus ServiceMonitor for metrics collection',
+      crdKind: 'ServiceMonitor',
+      apiVersion: 'monitoring.coreos.com/v1',
+      template: {
+        apiVersion: 'monitoring.coreos.com/v1',
+        kind: 'ServiceMonitor',
+        metadata: {
+          name: '{{name}}',
+          namespace: '{{namespace}}',
+          labels: {
+            app: '{{app}}',
+          },
+        },
+        spec: {
+          selector: {
+            matchLabels: {
+              app: '{{app}}',
+            },
+          },
+          endpoints: [
+            {
+              port: '{{metricsPort}}',
+              interval: '{{interval}}',
+              path: '{{metricsPath}}',
+            },
+          ],
+        },
+      },
+      fields: [
+        { key: 'name', label: 'Name', type: 'string', required: true, placeholder: 'my-servicemonitor' },
+        { key: 'namespace', label: 'Namespace', type: 'string', required: true, default: 'default' },
+        { key: 'app', label: 'App Label', type: 'string', required: true, placeholder: 'my-app' },
+        { key: 'metricsPort', label: 'Metrics Port', type: 'string', required: true, default: 'metrics' },
+        { key: 'interval', label: 'Scrape Interval', type: 'string', required: true, default: '30s' },
+        { key: 'metricsPath', label: 'Metrics Path', type: 'string', required: true, default: '/metrics' },
+      ],
+    },
+  ],
+
+  // Cert-Manager Certificate
+  'certificates.cert-manager.io': [
+    {
+      name: 'Basic Certificate',
+      description: 'A basic cert-manager Certificate for TLS',
+      crdKind: 'Certificate',
+      apiVersion: 'cert-manager.io/v1',
+      template: {
+        apiVersion: 'cert-manager.io/v1',
+        kind: 'Certificate',
+        metadata: {
+          name: '{{name}}',
+          namespace: '{{namespace}}',
+        },
+        spec: {
+          secretName: '{{secretName}}',
+          dnsNames: ['{{dnsName}}'],
+          issuerRef: {
+            name: '{{issuerName}}',
+            kind: '{{issuerKind}}',
+          },
+        },
+      },
+      fields: [
+        { key: 'name', label: 'Name', type: 'string', required: true, placeholder: 'my-certificate' },
+        { key: 'namespace', label: 'Namespace', type: 'string', required: true, default: 'default' },
+        { key: 'secretName', label: 'Secret Name', type: 'string', required: true, placeholder: 'my-tls-secret' },
+        { key: 'dnsName', label: 'DNS Name', type: 'string', required: true, placeholder: 'example.com' },
+        { key: 'issuerName', label: 'Issuer Name', type: 'string', required: true, placeholder: 'letsencrypt-prod' },
+        { 
+          key: 'issuerKind', 
+          label: 'Issuer Kind', 
+          type: 'select', 
+          required: true, 
+          default: 'ClusterIssuer',
+          options: [
+            { label: 'ClusterIssuer', value: 'ClusterIssuer' },
+            { label: 'Issuer', value: 'Issuer' },
+          ],
+        },
+      ],
+    },
+  ],
+
+  // Example RAG Log Pilot (如你提到的raglogpilot)
+  'raglogpilots.ai.example.com': [
+    {
+      name: 'RAG Log Pilot Sample',
+      description: 'A sample RAG Log Pilot for AI log analysis',
+      crdKind: 'RAGLogPilot',
+      apiVersion: 'ai.example.com/v1',
+      template: {
+        apiVersion: 'ai.example.com/v1',
+        kind: 'RAGLogPilot',
+        metadata: {
+          name: '{{name}}',
+          namespace: '{{namespace}}',
+        },
+        spec: {
+          replicas: '{{replicas}}',
+          model: '{{model}}',
+          logSources: [
+            {
+              name: '{{logSourceName}}',
+              path: '{{logPath}}',
+              format: '{{logFormat}}',
+            },
+          ],
+          vectorDatabase: {
+            type: '{{vectorDbType}}',
+            endpoint: '{{vectorDbEndpoint}}',
+          },
+          retrieval: {
+            topK: '{{topK}}',
+            similarity: '{{similarity}}',
+          },
+          generation: {
+            maxTokens: '{{maxTokens}}',
+            temperature: '{{temperature}}',
+          },
+        },
+      },
+      fields: [
+        { key: 'name', label: 'Name', type: 'string', required: true, placeholder: 'raglogpilot-sample' },
+        { key: 'namespace', label: 'Namespace', type: 'string', required: true, default: 'default' },
+        { key: 'replicas', label: 'Replicas', type: 'number', required: true, default: 1 },
+        { 
+          key: 'model', 
+          label: 'AI Model', 
+          type: 'select', 
+          required: true, 
+          default: 'gpt-3.5-turbo',
+          options: [
+            { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' },
+            { label: 'GPT-4', value: 'gpt-4' },
+            { label: 'Claude-3', value: 'claude-3' },
+          ],
+        },
+        { key: 'logSourceName', label: 'Log Source Name', type: 'string', required: true, placeholder: 'app-logs' },
+        { key: 'logPath', label: 'Log Path', type: 'string', required: true, placeholder: '/var/log/app/*.log' },
+        { 
+          key: 'logFormat', 
+          label: 'Log Format', 
+          type: 'select', 
+          required: true, 
+          default: 'json',
+          options: [
+            { label: 'JSON', value: 'json' },
+            { label: 'Plain Text', value: 'text' },
+            { label: 'Apache', value: 'apache' },
+          ],
+        },
+        { 
+          key: 'vectorDbType', 
+          label: 'Vector Database Type', 
+          type: 'select', 
+          required: true, 
+          default: 'pinecone',
+          options: [
+            { label: 'Pinecone', value: 'pinecone' },
+            { label: 'Weaviate', value: 'weaviate' },
+            { label: 'ChromaDB', value: 'chromadb' },
+          ],
+        },
+        { key: 'vectorDbEndpoint', label: 'Vector DB Endpoint', type: 'string', required: true, placeholder: 'https://api.pinecone.io' },
+        { key: 'topK', label: 'Top K Results', type: 'number', required: true, default: 5 },
+        { key: 'similarity', label: 'Similarity Threshold', type: 'number', required: true, default: 0.8 },
+        { key: 'maxTokens', label: 'Max Tokens', type: 'number', required: true, default: 1000 },
+        { key: 'temperature', label: 'Temperature', type: 'number', required: true, default: 0.7 },
+      ],
+    },
+  ],
+
+  // Generic template for unknown CRDs
+  'default': [
+    {
+      name: 'Basic Resource',
+      description: 'A basic custom resource template',
+      crdKind: 'CustomResource',
+      apiVersion: 'example.com/v1',
+      template: {
+        apiVersion: '{{apiVersion}}',
+        kind: '{{kind}}',
+        metadata: {
+          name: '{{name}}',
+          namespace: '{{namespace}}',
+        },
+        spec: {
+          replicas: '{{replicas}}',
+        },
+      },
+      fields: [
+        { key: 'name', label: 'Name', type: 'string', required: true, placeholder: 'my-resource' },
+        { key: 'namespace', label: 'Namespace', type: 'string', required: true, default: 'default' },
+        { key: 'kind', label: 'Kind', type: 'string', required: true, placeholder: 'MyResource' },
+        { key: 'apiVersion', label: 'API Version', type: 'string', required: true, placeholder: 'example.com/v1' },
+        { key: 'replicas', label: 'Replicas', type: 'number', required: false, default: 1 },
+      ],
+    },
+  ],
+}
+
+// Get templates for a specific CRD
+export function getTemplatesForCRD(crdName: string): CRTemplate[] {
+  return CRD_TEMPLATES[crdName] || CRD_TEMPLATES['default']
+}
+
+// Apply template values to generate final resource
+export function applyTemplate(template: CRTemplate, values: Record<string, any>): Record<string, any> {
+  const templateStr = JSON.stringify(template.template)
+  let result = templateStr
+  
+  // Replace template variables
+  template.fields.forEach(field => {
+    const value = values[field.key] !== undefined ? values[field.key] : field.default
+    const regex = new RegExp(`{{${field.key}}}`, 'g')
+    result = result.replace(regex, String(value))
+  })
+  
+  try {
+    return JSON.parse(result)
+  } catch (error) {
+    console.error('Failed to parse template result:', error)
+    throw new Error('Template parsing failed')
+  }
+}
+
+// Validate template field values
+export function validateTemplateValues(template: CRTemplate, values: Record<string, any>): string[] {
+  const errors: string[] = []
+  
+  template.fields.forEach(field => {
+    const value = values[field.key]
+    
+    if (field.required && (value === undefined || value === null || value === '')) {
+      errors.push(`${field.label} is required`)
+    }
+    
+    if (value !== undefined && value !== null && value !== '') {
+      switch (field.type) {
+        case 'number':
+          if (isNaN(Number(value))) {
+            errors.push(`${field.label} must be a valid number`)
+          }
+          break
+        case 'boolean':
+          if (typeof value !== 'boolean') {
+            errors.push(`${field.label} must be true or false`)
+          }
+          break
+      }
+    }
+  })
+  
+  return errors
 }
