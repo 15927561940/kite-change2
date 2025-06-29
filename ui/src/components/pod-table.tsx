@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { IconLoader } from '@tabler/icons-react'
+import { IconLoader, IconServer } from '@tabler/icons-react'
 import { Pod } from 'kubernetes-types/core/v1'
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -9,6 +9,12 @@ import { formatDate } from '@/lib/utils'
 import { PodStatusBadge } from './pod-status-badge'
 import { Column, SimpleTable } from './simple-table'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip'
 
 export function PodTable(props: {
   pods?: Pod[]
@@ -156,14 +162,33 @@ export function PodTable(props: {
             {
               header: 'Node',
               accessor: (pod: Pod) => pod.spec?.nodeName || '-',
-              cell: (value: unknown) => (
-                <Link
-                  to={`/nodes/${value}`}
-                  className="text-blue-600 hover:text-blue-800 hover:underline"
-                >
-                  {value as string}
-                </Link>
-              ),
+              cell: (value: unknown) => {
+                const nodeName = value as string
+                if (nodeName === '-') return nodeName
+                
+                return (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link
+                          to={`/nodes/${nodeName}`}
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          <IconServer className="w-3 h-3" />
+                          {nodeName}
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="text-xs">
+                          <div className="font-medium">节点信息</div>
+                          <div className="mt-1">名称: {nodeName}</div>
+                          <div className="text-blue-600">💡 点击查看节点详情</div>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )
+              },
             },
           ]),
       {

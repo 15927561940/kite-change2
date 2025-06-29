@@ -117,6 +117,26 @@ export function PodStatusBadge({
 
   const restartCount = getRestartCount(pod)
 
+  // 获取Pod的详细信息用于悬浮提示
+  const getPodStatusInfo = () => {
+    const phase = pod.status?.phase || 'Unknown'
+    const nodeName = pod.spec?.nodeName || '未分配'
+    const podIP = pod.status?.podIP || '未分配'
+    const startTime = pod.status?.startTime
+    const ready = pod.status?.containerStatuses?.every((c: any) => c.ready) || false
+    
+    return {
+      phase,
+      nodeName,
+      podIP,
+      startTime,
+      ready,
+      containers: pod.status?.containerStatuses || []
+    }
+  }
+
+  const statusInfo = getPodStatusInfo()
+
   const NodeHistoryCard = ({ history }: { history: PodNodeHistory }) => (
     <Card className="mt-4">
       <CardHeader>
@@ -226,47 +246,112 @@ export function PodStatusBadge({
   return (
     <TooltipProvider>
       <div className="flex items-center gap-2">
-        {/* Status Badge with Error Tooltip */}
-        {hasErrors ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center gap-1">
-                <Badge variant={getStatusVariant(pod.status?.phase)} className="cursor-help">
-                  <IconAlertTriangle className="w-3 h-3 mr-1" />
-                  {pod.status?.phase || 'Unknown'}
-                </Badge>
+        {/* Enhanced Status Badge with Comprehensive Tooltip */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center gap-1 cursor-help" onClick={onViewLogs}>
+              <Badge 
+                variant={getStatusVariant(pod.status?.phase)} 
+                className={cn(
+                  "cursor-pointer transition-colors",
+                  hasErrors && "border-red-500",
+                  onViewLogs && "hover:bg-opacity-80"
+                )}
+              >
+                {hasErrors && <IconAlertTriangle className="w-3 h-3 mr-1" />}
+                <IconServer className="w-3 h-3 mr-1" />
+                {pod.status?.phase || 'Unknown'}
+              </Badge>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-sm p-3">
+            <div className="space-y-2">
+              <div className="font-medium text-sm border-b pb-1">Pod 状态详情</div>
+              
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-muted-foreground">状态:</span>
+                  <span className="ml-1 font-medium">{statusInfo.phase}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">就绪:</span>
+                  <span className={cn(
+                    "ml-1 font-medium",
+                    statusInfo.ready ? "text-green-600" : "text-red-600"
+                  )}>
+                    {statusInfo.ready ? '是' : '否'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">节点:</span>
+                  <span className="ml-1 font-medium">{statusInfo.nodeName}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">IP:</span>
+                  <span className="ml-1 font-medium">{statusInfo.podIP}</span>
+                </div>
               </div>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-sm">
-              <div className="space-y-1">
-                <div className="font-medium text-xs">错误详情:</div>
-                <div className="text-xs">{errorMessage}</div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <Badge variant={getStatusVariant(pod.status?.phase)}>
-            {pod.status?.phase || 'Unknown'}
-          </Badge>
-        )}
+              
+              {statusInfo.startTime && (
+                <div className="text-xs">
+                  <span className="text-muted-foreground">启动时间:</span>
+                  <span className="ml-1">{safeFormatDistanceToNow(statusInfo.startTime, { addSuffix: true })}</span>
+                </div>
+              )}
+              
+              {restartCount > 0 && (
+                <div className="text-xs text-orange-600">
+                  <span>重启次数: {restartCount}</span>
+                </div>
+              )}
+              
+              {hasErrors && (
+                <div className="text-xs text-red-600 border-t pt-1">
+                  <div className="font-medium">错误详情:</div>
+                  <div className="mt-1">{errorMessage}</div>
+                </div>
+              )}
+              
+              {onViewLogs && (
+                <div className="text-xs text-blue-600 border-t pt-1">
+                  💡 点击查看日志
+                </div>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
 
         {/* Restart Count Badge */}
         {restartCount > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="outline" className="cursor-help">
+              <Badge variant="outline" className="cursor-help text-orange-600 border-orange-300">
                 <IconRefresh className="w-3 h-3 mr-1" />
                 {restartCount}
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
-              <div className="text-xs">容器重启次数: {restartCount}</div>
+              <div className="text-xs">
+                <div className="font-medium">容器重启统计</div>
+                <div className="mt-1">总重启次数: {restartCount}</div>
+                {statusInfo.containers.length > 0 && (
+                  <div className="mt-1 space-y-1">
+                    {statusInfo.containers.map((container: any, idx: number) => (
+                      container.restartCount > 0 && (
+                        <div key={idx} className="text-xs">
+                          {container.name}: {container.restartCount}次
+                        </div>
+                      )
+                    ))}
+                  </div>
+                )}
+              </div>
             </TooltipContent>
           </Tooltip>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1">
+        {/* Action Buttons - Better Aligned */}
+        <div className="flex items-center">
           {/* Logs Button */}
           {showLogsButton && onViewLogs && (
             <Tooltip>
@@ -275,13 +360,13 @@ export function PodStatusBadge({
                   variant="ghost"
                   size="sm"
                   onClick={onViewLogs}
-                  className="h-6 w-6 p-0"
+                  className="h-7 w-7 p-0 hover:bg-blue-100 hover:text-blue-700"
                 >
-                  <IconEye className="w-3 h-3" />
+                  <IconEye className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <div className="text-xs">查看日志</div>
+                <div className="text-xs font-medium">查看实时日志</div>
               </TooltipContent>
             </Tooltip>
           )}
@@ -295,13 +380,13 @@ export function PodStatusBadge({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0"
+                      className="h-7 w-7 p-0 hover:bg-green-100 hover:text-green-700"
                     >
-                      <IconHistory className="w-3 h-3" />
+                      <IconHistory className="w-4 h-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <div className="text-xs">查看历史</div>
+                    <div className="text-xs font-medium">查看历史记录</div>
                   </TooltipContent>
                 </Tooltip>
               </DialogTrigger>

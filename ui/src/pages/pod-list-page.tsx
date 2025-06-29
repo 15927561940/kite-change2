@@ -2,10 +2,17 @@ import { useCallback, useMemo } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Pod } from 'kubernetes-types/core/v1'
 import { Link, useNavigate } from 'react-router-dom'
+import { IconServer } from '@tabler/icons-react'
 
 import { formatDate } from '@/lib/utils'
 import { PodStatusBadge } from '@/components/pod-status-badge'
 import { ResourceTable } from '@/components/resource-table'
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 export function PodListPage() {
   // Define column helper outside of any hooks
@@ -68,7 +75,33 @@ export function PodListPage() {
       columnHelper.accessor('spec.nodeName', {
         header: 'Node',
         enableColumnFilter: true,
-        cell: ({ getValue }) => getValue() || '-',
+        cell: ({ getValue }) => {
+          const nodeName = getValue() || '-'
+          if (nodeName === '-') return nodeName
+          
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    to={`/nodes/${nodeName}`}
+                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    <IconServer className="w-3 h-3" />
+                    {nodeName}
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="text-xs">
+                    <div className="font-medium">节点信息</div>
+                    <div className="mt-1">名称: {nodeName}</div>
+                    <div className="text-blue-600">💡 点击查看节点详情</div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )
+        },
       }),
       columnHelper.accessor('metadata.creationTimestamp', {
         header: 'Created',
