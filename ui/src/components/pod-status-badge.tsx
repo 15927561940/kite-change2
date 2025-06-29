@@ -300,20 +300,20 @@ export function PodStatusBadge({
               )}
               
               {restartCount > 0 && (
-                <div className="text-xs text-orange-600">
+                <div className="text-xs text-amber-700">
                   <span>重启次数: {restartCount}</span>
                 </div>
               )}
               
               {hasErrors && (
-                <div className="text-xs text-red-600 border-t pt-1">
+                <div className="text-xs text-red-700 border-t border-red-100 pt-1 bg-red-50/50 rounded px-2 py-1 mt-1">
                   <div className="font-medium">错误详情:</div>
                   <div className="mt-1">{errorMessage}</div>
                 </div>
               )}
               
               {onViewLogs && (
-                <div className="text-xs text-blue-600 border-t pt-1">
+                <div className="text-xs text-slate-600 border-t border-slate-100 pt-1">
                   💡 点击查看日志
                 </div>
               )}
@@ -325,20 +325,20 @@ export function PodStatusBadge({
         {restartCount > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="outline" className="cursor-help text-orange-600 border-orange-300">
+              <Badge variant="outline" className="cursor-help text-amber-700 border-amber-300 bg-amber-50/50">
                 <IconRefresh className="w-3 h-3 mr-1" />
                 {restartCount}
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
               <div className="text-xs">
-                <div className="font-medium">容器重启统计</div>
-                <div className="mt-1">总重启次数: {restartCount}</div>
+                <div className="font-medium text-slate-700">容器重启统计</div>
+                <div className="mt-1 text-slate-600">总重启次数: {restartCount}</div>
                 {statusInfo.containers.length > 0 && (
                   <div className="mt-1 space-y-1">
                     {statusInfo.containers.map((container: any, idx: number) => (
                       container.restartCount > 0 && (
-                        <div key={idx} className="text-xs">
+                        <div key={idx} className="text-xs text-slate-600">
                           {container.name}: {container.restartCount}次
                         </div>
                       )
@@ -360,13 +360,13 @@ export function PodStatusBadge({
                   variant="ghost"
                   size="sm"
                   onClick={onViewLogs}
-                  className="h-7 w-7 p-0 hover:bg-blue-100 hover:text-blue-700"
+                  className="h-7 w-7 p-0 hover:bg-slate-100 hover:text-slate-700"
                 >
                   <IconEye className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <div className="text-xs font-medium">查看实时日志</div>
+                <div className="text-xs font-medium text-slate-700">查看实时日志</div>
               </TooltipContent>
             </Tooltip>
           )}
@@ -380,13 +380,13 @@ export function PodStatusBadge({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0 hover:bg-green-100 hover:text-green-700"
+                      className="h-7 w-7 p-0 hover:bg-slate-100 hover:text-slate-700"
                     >
                       <IconHistory className="w-4 h-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <div className="text-xs font-medium">查看历史记录</div>
+                    <div className="text-xs font-medium text-slate-700">查看历史记录</div>
                   </TooltipContent>
                 </Tooltip>
               </DialogTrigger>

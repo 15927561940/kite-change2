@@ -93,9 +93,9 @@ export function PodListPage() {
                 </TooltipTrigger>
                 <TooltipContent>
                   <div className="text-xs">
-                    <div className="font-medium">节点信息</div>
-                    <div className="mt-1">名称: {nodeName}</div>
-                    <div className="text-blue-600">💡 点击查看节点详情</div>
+                    <div className="font-medium text-slate-700">节点信息</div>
+                    <div className="mt-1 text-slate-600">名称: {nodeName}</div>
+                    <div className="text-slate-600">💡 点击查看节点详情</div>
                   </div>
                 </TooltipContent>
               </Tooltip>
