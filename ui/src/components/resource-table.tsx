@@ -14,7 +14,7 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table'
-import { Box, Database, Plus, RotateCcw, Search, XCircle, CheckSquare, Square, MinusSquare } from 'lucide-react'
+import { Box, Database, Plus, RotateCcw, Search, XCircle, CheckSquare, Square, MinusSquare, Check } from 'lucide-react'
 
 import { ResourceType } from '@/types/api'
 import { useResources } from '@/lib/api'
@@ -145,17 +145,23 @@ export function ResourceTable<T>({
     if (enableRowSelection) {
       const selectionColumn = {
         id: 'select',
-        header: ({ table }: { table: any }) => (
-          <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && "indeterminate")
-            }
-            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-            aria-label="Select all"
-          />
+        header: () => (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleToggleSelection}
+            className="h-6 w-6 p-0"
+          >
+            {getSelectionState() === 'all' ? (
+              <Check className="w-4 h-4" />
+            ) : getSelectionState() === 'some' ? (
+              <MinusSquare className="w-4 h-4" />
+            ) : (
+              <Square className="w-4 h-4" />
+            )}
+          </Button>
         ),
-        cell: ({ row }: { row: any }) => (
+        cell: ({ row }: { row: { getIsSelected: () => boolean; toggleSelected: (value: boolean) => void } }) => (
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
@@ -210,7 +216,7 @@ export function ResourceTable<T>({
       }
     }
     return newColumns
-  }, [columns, clusterScope, selectedNamespace, enableRowSelection])
+  }, [columns, clusterScope, selectedNamespace, enableRowSelection, getSelectionState, handleToggleSelection])
 
   // Memoize data to prevent unnecessary re-renders
   const memoizedData = useMemo(() => (data || []) as T[], [data])
@@ -277,7 +283,7 @@ export function ResourceTable<T>({
   // Get selected rows data
   const selectedRows = useMemo(() => {
     return table.getSelectedRowModel().rows.map(row => row.original)
-  }, [table.getSelectedRowModel().rows])
+  }, [table])
 
   // Handle batch action
   const handleBatchAction = useCallback((action: string) => {
@@ -288,15 +294,6 @@ export function ResourceTable<T>({
     }
   }, [onBatchAction, selectedRows])
 
-  // Handle select all filtered rows
-  const handleSelectAllFiltered = useCallback(() => {
-    const filteredRows = table.getFilteredRowModel().rows
-    const newSelection: RowSelectionState = {}
-    filteredRows.forEach(row => {
-      newSelection[row.id] = true
-    })
-    setRowSelection(newSelection)
-  }, [table])
 
   // Handle deselect all
   const handleDeselectAll = useCallback(() => {
@@ -573,15 +570,38 @@ export function ResourceTable<T>({
       {enableRowSelection && data && (data as T[]).length > 0 && (
         <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
           <div className="flex items-center gap-4">
+            {/* Batch Actions First */}
+            {selectedRows.length > 0 && (
+              <div className="flex items-center gap-2">
+                {batchActions.map((action) => (
+                  <Button
+                    key={action.action}
+                    variant={action.variant || 'default'}
+                    size="sm"
+                    onClick={() => handleBatchAction(action.action)}
+                    className={`h-8 ${
+                      action.action === 'restart' ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200' : ''
+                    }`}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            )}
+            
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleSelectAllFiltered}
+                onClick={handleToggleSelection}
                 className="h-8"
               >
-                <CheckSquare className="w-4 h-4 mr-1" />
-                全选当前页 ({table.getFilteredRowModel().rows.length})
+                {getSelectionState() === 'all' ? (
+                  <Check className="w-4 h-4 mr-1" />
+                ) : (
+                  <Square className="w-4 h-4 mr-1" />
+                )}
+                全选当前页{selectedRows.length > 0 ? ` (${selectedRows.length})` : ''}
               </Button>
               <Button
                 variant="outline"
@@ -603,23 +623,6 @@ export function ResourceTable<T>({
               </div>
             )}
           </div>
-
-          {/* Batch Actions in Toolbar */}
-          {selectedRows.length > 0 && (
-            <div className="flex items-center gap-2">
-              {batchActions.map((action) => (
-                <Button
-                  key={action.action}
-                  variant={action.variant || 'default'}
-                  size="sm"
-                  onClick={() => handleBatchAction(action.action)}
-                  className="h-8"
-                >
-                  {action.label}
-                </Button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

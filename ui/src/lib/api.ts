@@ -1300,3 +1300,24 @@ export const restartDeploymentsBatch = async (deployments: Array<{ namespace: st
     throw error
   }
 }
+
+// Scale-restart deployments functionality
+export const scaleRestartDeploymentsBatch = async (
+  deployments: Array<{ namespace: string; name: string }>,
+  finalReplicas?: number
+): Promise<void> => {
+  try {
+    const requestBody: { deployments: Array<{ namespace: string; name: string }>; finalReplicas?: number } = {
+      deployments
+    }
+    
+    if (finalReplicas !== undefined) {
+      requestBody.finalReplicas = finalReplicas
+    }
+    
+    await apiClient.post('/deployments/batch/scale-restart', requestBody)
+  } catch (error) {
+    console.error('Failed to scale-restart deployments batch:', error)
+    throw error
+  }
+}

@@ -10,8 +10,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DeploymentStatusIcon } from '@/components/deployment-status-icon'
 import { DeploymentCreateDialog } from '@/components/editors/deployment-create-dialog'
+import { DeploymentRestartDialog } from '@/components/deployment-restart-dialog'
 import { ResourceTable } from '@/components/resource-table'
-import { restartDeployment, restartDeploymentsBatch } from '@/lib/api'
+import { restartDeploymentsBatch, scaleRestartDeploymentsBatch } from '@/lib/api'
 import { 
   Tooltip,
   TooltipContent,
@@ -22,6 +23,8 @@ import {
 export function DeploymentListPage() {
   const navigate = useNavigate()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isRestartDialogOpen, setIsRestartDialogOpen] = useState(false)
+  const [deploymentsToRestart, setDeploymentsToRestart] = useState<Deployment[]>([])
 
   // Define column helper outside of any hooks
   const columnHelper = createColumnHelper<Deployment>()
@@ -66,14 +69,9 @@ export function DeploymentListPage() {
           const handleRestartDeployment = async () => {
             if (!deployment.metadata?.namespace || !deployment.metadata?.name) return
             
-            try {
-              await restartDeployment(deployment.metadata.namespace, deployment.metadata.name)
-              console.log(`Deployment ${deployment.metadata.name} rolling restart triggered successfully`)
-              // Reload the page to show updated status
-              window.location.reload()
-            } catch (error) {
-              console.error('Failed to restart deployment:', error)
-            }
+            // Show confirmation dialog for single deployment too
+            setDeploymentsToRestart([deployment])
+            setIsRestartDialogOpen(true)
           }
           
           return (
@@ -143,21 +141,45 @@ export function DeploymentListPage() {
   // Handle batch actions
   const handleBatchAction = useCallback(async (selectedDeployments: Deployment[], action: string) => {
     if (action === 'restart') {
-      try {
-        const deploymentList = selectedDeployments.map(deployment => ({
+      // Show confirmation dialog
+      setDeploymentsToRestart(selectedDeployments)
+      setIsRestartDialogOpen(true)
+    }
+  }, [])
+
+  // Handle restart confirmation
+  const handleRestartConfirm = useCallback(async (
+    action: 'restart' | 'scale-restart',
+    options?: { finalReplicas?: number }
+  ) => {
+    try {
+      if (action === 'restart') {
+        // Normal restart
+        const deploymentList = deploymentsToRestart.map(deployment => ({
           namespace: deployment.metadata!.namespace!,
           name: deployment.metadata!.name!
         }))
         
         await restartDeploymentsBatch(deploymentList)
         console.log(`Batch rolling restart triggered for ${deploymentList.length} deployments`)
-        // Reload the page to show updated status
-        window.location.reload()
-      } catch (error) {
-        console.error('Failed to restart deployments batch:', error)
+      } else if (action === 'scale-restart') {
+        // Use the new scale-restart batch API
+        const deploymentList = deploymentsToRestart.map(deployment => ({
+          namespace: deployment.metadata!.namespace!,
+          name: deployment.metadata!.name!
+        }))
+        
+        await scaleRestartDeploymentsBatch(deploymentList, options?.finalReplicas)
+        console.log(`Scale-restart operation completed for ${deploymentList.length} deployments`)
       }
+      
+      // Reload the page to show updated status
+      window.location.reload()
+    } catch (error) {
+      console.error('Failed to restart deployments:', error)
+      throw error
     }
-  }, [])
+  }, [deploymentsToRestart])
 
   // Define batch actions
   const batchActions = useMemo(() => [
@@ -181,6 +203,13 @@ export function DeploymentListPage() {
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
         onSuccess={handleCreateSuccess}
+      />
+
+      <DeploymentRestartDialog
+        open={isRestartDialogOpen}
+        onOpenChange={setIsRestartDialogOpen}
+        deployments={deploymentsToRestart}
+        onConfirm={handleRestartConfirm}
       />
     </>
   )

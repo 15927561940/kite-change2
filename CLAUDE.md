@@ -178,3 +178,33 @@ Key environment variables for development:
   - Create buttons in CRD list pages
   - Template-based resource creation
   - Automatic refresh after operations
+
+## Important Development Guidelines
+
+### Code Quality & Testing
+- Always run `make lint` and `make pre-commit` before committing changes
+- Backend uses golangci-lint for Go code quality
+- Frontend uses ESLint and Prettier for TypeScript/React code
+- No dedicated test framework is currently configured - verify changes manually
+
+### Authentication Flow
+- JWT-based authentication with automatic token refresh
+- API client in `ui/src/lib/api-client.ts` handles 401 responses automatically
+- Auth context provides login/logout functionality across the app
+- Supports both OAuth (GitHub) and username/password authentication
+
+### WebSocket Connections
+- Terminal functionality uses WebSocket connections (`/api/v1/terminal/:namespace/:podName/ws`)
+- Node terminal access via `/api/v1/node-terminal/:nodeName/ws`
+- Real-time log streaming through WebSocket endpoints
+
+### Resource Handler Architecture
+- Generic resource handlers in `pkg/handlers/resources/` support all Kubernetes types
+- Custom resource (CR) handler provides dynamic support for any CRD
+- Resource operations are standardized: List, Get, Create, Update, Delete
+- Search functionality is pluggable via `RegisterSearchFunc`
+
+### Static Asset Embedding
+- Frontend build output is embedded in Go binary via `//go:embed static`
+- Production builds serve everything from a single binary
+- Development mode runs frontend and backend separately (backend on 8080, frontend on 5173)
