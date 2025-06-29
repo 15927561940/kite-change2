@@ -315,6 +315,22 @@ export const createResource = async <T extends ResourceType>(
   })
 }
 
+// Create CRD resource using dynamic path
+export const createCRResource = async (
+  crdName: string,
+  namespace: string | undefined,
+  body: any
+): Promise<any> => {
+  const endpoint = namespace 
+    ? `/${crdName}/${namespace}`
+    : `/${crdName}/_all`
+  return await apiClient.post<any>(`${endpoint}`, body, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
 export const deleteResource = async <T extends ResourceType>(
   resource: T,
   name: string,

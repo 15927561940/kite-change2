@@ -19,7 +19,7 @@ export interface CRTemplate {
 export interface TemplateField {
   key: string
   label: string
-  type: 'string' | 'number' | 'boolean' | 'select'
+  type: 'string' | 'number' | 'boolean' | 'select' | 'namespace'
   required: boolean
   default?: any
   description?: string
@@ -461,91 +461,38 @@ export const CRD_TEMPLATES: Record<string, CRTemplate[]> = {
     },
   ],
 
-  // Example RAG Log Pilot (如你提到的raglogpilot)
-  'raglogpilots.ai.example.com': [
+  // RAG Log Pilot (实际的CRD结构)
+  'raglogpilots.log.aiops.com.aiops.com': [
     {
       name: 'RAG Log Pilot Sample',
       description: 'A sample RAG Log Pilot for AI log analysis',
-      crdKind: 'RAGLogPilot',
-      apiVersion: 'ai.example.com/v1',
+      crdKind: 'RagLogPilot',
+      apiVersion: 'log.aiops.com.aiops.com/v1',
       template: {
-        apiVersion: 'ai.example.com/v1',
-        kind: 'RAGLogPilot',
+        apiVersion: 'log.aiops.com.aiops.com/v1',
+        kind: 'RagLogPilot',
         metadata: {
           name: '{{name}}',
           namespace: '{{namespace}}',
+          labels: {
+            'app.kubernetes.io/managed-by': '{{managedBy}}',
+            'app.kubernetes.io/name': '{{appName}}',
+          },
         },
         spec: {
-          replicas: '{{replicas}}',
-          model: '{{model}}',
-          logSources: [
-            {
-              name: '{{logSourceName}}',
-              path: '{{logPath}}',
-              format: '{{logFormat}}',
-            },
-          ],
-          vectorDatabase: {
-            type: '{{vectorDbType}}',
-            endpoint: '{{vectorDbEndpoint}}',
-          },
-          retrieval: {
-            topK: '{{topK}}',
-            similarity: '{{similarity}}',
-          },
-          generation: {
-            maxTokens: '{{maxTokens}}',
-            temperature: '{{temperature}}',
-          },
+          ragFlowEndpoint: '{{ragFlowEndpoint}}',
+          ragFlowToken: '{{ragFlowToken}}',
+          workloadNameSpace: '{{workloadNameSpace}}',
         },
       },
       fields: [
         { key: 'name', label: 'Name', type: 'string', required: true, placeholder: 'raglogpilot-sample' },
-        { key: 'namespace', label: 'Namespace', type: 'string', required: true, default: 'default' },
-        { key: 'replicas', label: 'Replicas', type: 'number', required: true, default: 1 },
-        { 
-          key: 'model', 
-          label: 'AI Model', 
-          type: 'select', 
-          required: true, 
-          default: 'gpt-3.5-turbo',
-          options: [
-            { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo' },
-            { label: 'GPT-4', value: 'gpt-4' },
-            { label: 'Claude-3', value: 'claude-3' },
-          ],
-        },
-        { key: 'logSourceName', label: 'Log Source Name', type: 'string', required: true, placeholder: 'app-logs' },
-        { key: 'logPath', label: 'Log Path', type: 'string', required: true, placeholder: '/var/log/app/*.log' },
-        { 
-          key: 'logFormat', 
-          label: 'Log Format', 
-          type: 'select', 
-          required: true, 
-          default: 'json',
-          options: [
-            { label: 'JSON', value: 'json' },
-            { label: 'Plain Text', value: 'text' },
-            { label: 'Apache', value: 'apache' },
-          ],
-        },
-        { 
-          key: 'vectorDbType', 
-          label: 'Vector Database Type', 
-          type: 'select', 
-          required: true, 
-          default: 'pinecone',
-          options: [
-            { label: 'Pinecone', value: 'pinecone' },
-            { label: 'Weaviate', value: 'weaviate' },
-            { label: 'ChromaDB', value: 'chromadb' },
-          ],
-        },
-        { key: 'vectorDbEndpoint', label: 'Vector DB Endpoint', type: 'string', required: true, placeholder: 'https://api.pinecone.io' },
-        { key: 'topK', label: 'Top K Results', type: 'number', required: true, default: 5 },
-        { key: 'similarity', label: 'Similarity Threshold', type: 'number', required: true, default: 0.8 },
-        { key: 'maxTokens', label: 'Max Tokens', type: 'number', required: true, default: 1000 },
-        { key: 'temperature', label: 'Temperature', type: 'number', required: true, default: 0.7 },
+        { key: 'namespace', label: 'Namespace', type: 'namespace', required: true, default: 'default' },
+        { key: 'ragFlowEndpoint', label: 'RAG Flow Endpoint', type: 'string', required: true, placeholder: 'http://172.16.0.111/v1/api' },
+        { key: 'ragFlowToken', label: 'RAG Flow Token', type: 'string', required: true, placeholder: 'ragflow-IyNDQyMDYyNGI3YTExZjBhMzAzMDI0Mm' },
+        { key: 'workloadNameSpace', label: 'Workload Namespace', type: 'namespace', required: true, default: 'default' },
+        { key: 'managedBy', label: 'Managed By', type: 'string', required: false, default: 'kustomize' },
+        { key: 'appName', label: 'App Name', type: 'string', required: false, default: 'ragflow-ziji-zhishiku' },
       ],
     },
   ],

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { IconPlus, IconLoader, IconCheck } from '@tabler/icons-react'
 import { toast } from 'sonner'
 
-import { createResource } from '@/lib/api'
+import { createCRResource, useResources } from '@/lib/api'
 import {
   getTemplatesForCRD,
   applyTemplate,
@@ -51,6 +51,11 @@ export function CRCreateDialog({
   const [validationErrors, setValidationErrors] = useState<string[]>([])
 
   const templates = getTemplatesForCRD(crdName)
+  
+  // Fetch namespaces for namespace selector
+  const { data: namespaces } = useResources('namespaces', undefined, {
+    staleTime: 30000, // Cache for 30 seconds
+  })
   const defaultNamespace = crdData?.spec?.scope === 'Cluster' ? undefined : 'default'
 
   // Initialize form with default values when template changes
@@ -100,8 +105,8 @@ export function CRCreateDialog({
         ? undefined 
         : formValues.namespace || defaultNamespace
 
-      // Create the resource
-      await createResource(crdName as any, namespace, resource)
+      // Create the resource using CRD API
+      await createCRResource(crdName, namespace, resource)
       
       toast.success(`${selectedTemplate.crdKind} created successfully`)
       setOpen(false)
@@ -195,6 +200,34 @@ export function CRCreateDialog({
               onChange={e => handleFieldChange(field.key, Number(e.target.value) || '')}
               className={hasError ? 'border-destructive' : ''}
             />
+          </div>
+        )
+
+      case 'namespace':
+        return (
+          <div key={field.key} className="space-y-2">
+            <Label htmlFor={field.key}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            {field.description && (
+              <p className="text-xs text-muted-foreground">{field.description}</p>
+            )}
+            <Select
+              value={value || ''}
+              onValueChange={val => handleFieldChange(field.key, val)}
+            >
+              <SelectTrigger className={hasError ? 'border-destructive' : ''}>
+                <SelectValue placeholder={`Select ${field.label}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {namespaces?.map((ns: any) => (
+                  <SelectItem key={ns.metadata.name} value={ns.metadata.name}>
+                    {ns.metadata.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )
 
