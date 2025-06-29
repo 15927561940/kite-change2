@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { IconPlus, IconLoader, IconCheck } from '@tabler/icons-react'
 import { toast } from 'sonner'
 
-import { createCRResource, useResources } from '@/lib/api'
+import { createCRResource, updateCRResource, useResources } from '@/lib/api'
 import {
   getTemplatesForCRD,
   applyTemplate,
@@ -37,12 +37,19 @@ interface CRCreateDialogProps {
   crdName: string
   crdData?: any
   onSuccess?: () => void
+  // Edit mode props
+  isEdit?: boolean
+  existingResource?: any
+  trigger?: React.ReactNode
 }
 
 export function CRCreateDialog({
   crdName,
   crdData,
   onSuccess,
+  isEdit = false,
+  existingResource,
+  trigger,
 }: CRCreateDialogProps) {
   const [open, setOpen] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<CRTemplate | null>(null)
@@ -57,6 +64,22 @@ export function CRCreateDialog({
 
   const templates = getTemplatesForCRD(crdName)
   
+  // Auto-select template in edit mode
+  useEffect(() => {
+    if (isEdit && existingResource && templates.length > 0) {
+      // For LogPilot, select the LogPilot template
+      if (existingResource.kind === 'LogPilot') {
+        const logPilotTemplate = templates.find(t => t.crdKind === 'LogPilot')
+        if (logPilotTemplate) {
+          setSelectedTemplate(logPilotTemplate)
+        }
+      } else {
+        // For other CRDs, select the first available template
+        setSelectedTemplate(templates[0])
+      }
+    }
+  }, [isEdit, existingResource, templates])
+  
   // Fetch namespaces for namespace selector
   const { data: namespaces } = useResources('namespaces', undefined, {
     staleTime: 30000, // Cache for 30 seconds
@@ -67,30 +90,55 @@ export function CRCreateDialog({
   useEffect(() => {
     if (selectedTemplate) {
       const defaultValues: Record<string, any> = {}
-      selectedTemplate.fields.forEach(field => {
-        // 优先使用字段的默认值
-        if (field.default !== undefined && field.default !== null && field.default !== '') {
-          defaultValues[field.key] = field.default
-        } else if (field.type === 'number') {
-          defaultValues[field.key] = field.default || 0
-        } else if (field.type === 'boolean') {
-          defaultValues[field.key] = field.default || false
-        } else {
-          // 对于string类型，如果没有默认值则留空，让用户手动填写或使用Tab补全
-          defaultValues[field.key] = ''
-        }
-        
-        // Set default namespace for namespaced resources
-        if (field.key === 'namespace' && defaultNamespace && !field.default) {
-          defaultValues[field.key] = defaultNamespace
-        }
-      })
       
-      console.log('Setting default values:', defaultValues)
+      if (isEdit && existingResource) {
+        // Extract values from existing resource for edit mode
+        selectedTemplate.fields.forEach(field => {
+          if (field.key === 'name') {
+            defaultValues[field.key] = existingResource.metadata?.name || ''
+          } else if (field.key === 'namespace') {
+            defaultValues[field.key] = existingResource.metadata?.namespace || defaultNamespace || ''
+          } else {
+            // Extract from spec or use defaults
+            defaultValues[field.key] = existingResource.spec?.[field.key] ?? field.default ?? ''
+          }
+        })
+        
+        // Special handling for LogPilot logAlerts in edit mode
+        if (selectedTemplate.crdKind === 'LogPilot' && existingResource.spec?.logAlerts) {
+          setLogAlerts(existingResource.spec.logAlerts.map((alert: any) => ({
+            appSelector: alert.appSelector || '',
+            logPattern: alert.logPattern || '',
+            alertInterval: alert.alertInterval || undefined
+          })))
+        }
+      } else {
+        // Default values for create mode
+        selectedTemplate.fields.forEach(field => {
+          // 优先使用字段的默认值
+          if (field.default !== undefined && field.default !== null && field.default !== '') {
+            defaultValues[field.key] = field.default
+          } else if (field.type === 'number') {
+            defaultValues[field.key] = field.default || 0
+          } else if (field.type === 'boolean') {
+            defaultValues[field.key] = field.default || false
+          } else {
+            // 对于string类型，如果没有默认值则留空，让用户手动填写或使用Tab补全
+            defaultValues[field.key] = ''
+          }
+          
+          // Set default namespace for namespaced resources
+          if (field.key === 'namespace' && defaultNamespace && !field.default) {
+            defaultValues[field.key] = defaultNamespace
+          }
+        })
+      }
+      
+      console.log('Setting values (edit mode:', isEdit, '):', defaultValues)
       setFormValues(defaultValues)
       setValidationErrors([])
     }
-  }, [selectedTemplate, defaultNamespace])
+  }, [selectedTemplate, defaultNamespace, isEdit, existingResource])
 
   // Handle Tab key for auto-completion
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, field: TemplateField) => {
@@ -109,7 +157,7 @@ export function CRCreateDialog({
     }
   }
 
-  const handleCreate = async () => {
+  const handleSubmit = async () => {
     if (!selectedTemplate) return
 
     // Validate form
@@ -139,10 +187,16 @@ export function CRCreateDialog({
         ? undefined 
         : formValues.namespace || defaultNamespace
 
-      // Create the resource using CRD API
-      await createCRResource(crdName, namespaceForApi, resource)
+      if (isEdit && existingResource) {
+        // Update existing resource
+        await updateCRResource(crdName, namespaceForApi, formValues.name, resource)
+        toast.success(`${selectedTemplate.crdKind} updated successfully`)
+      } else {
+        // Create new resource
+        await createCRResource(crdName, namespaceForApi, resource)
+        toast.success(`${selectedTemplate.crdKind} created successfully`)
+      }
       
-      toast.success(`${selectedTemplate.crdKind} created successfully`)
       setOpen(false)
       setSelectedTemplate(null)
       setFormValues({})
@@ -152,7 +206,7 @@ export function CRCreateDialog({
         onSuccess()
       }
     } catch (error) {
-      console.error('Failed to create custom resource:', error)
+      console.error(`Failed to ${isEdit ? 'update' : 'create'} custom resource:`, error)
       
       // Ensure namespace is set for error logging
       if (!namespaceForApi) {
@@ -161,11 +215,16 @@ export function CRCreateDialog({
           : formValues.namespace || defaultNamespace
       }
       
+      const endpoint = isEdit && existingResource
+        ? (namespaceForApi ? `/${crdName}/${namespaceForApi}/${formValues.name}` : `/${crdName}/_all/${formValues.name}`)
+        : (namespaceForApi ? `/${crdName}/${namespaceForApi}` : `/${crdName}/_all`)
+      
       console.error('Request details:', {
         crdName,
         namespace: namespaceForApi,
         resource: resource || 'resource generation failed',
-        endpoint: namespaceForApi ? `/${crdName}/${namespaceForApi}` : `/${crdName}/_all`
+        endpoint,
+        isEdit
       })
       
       let errorMessage = 'Unknown error'
@@ -183,10 +242,10 @@ export function CRCreateDialog({
       }
       
       toast.error(
-        `Failed to create ${selectedTemplate.crdKind}: ${errorMessage}`,
+        `Failed to ${isEdit ? 'update' : 'create'} ${selectedTemplate.crdKind}: ${errorMessage}`,
         {
           duration: 10000, // 显示10秒以便用户看到完整错误
-          description: `Endpoint: ${namespaceForApi ? `/${crdName}/${namespaceForApi}` : `/${crdName}/_all`}`
+          description: `Endpoint: ${endpoint}`
         }
       )
     } finally {
@@ -370,64 +429,80 @@ export function CRCreateDialog({
           
           <div className="space-y-6">
             {logAlerts.map((alert, index) => (
-              <Card key={index} className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h4 className="font-medium text-base">告警规则 {index + 1}</h4>
-                  {logAlerts.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeLogAlert(index)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      删除
-                    </Button>
-                  )}
-                </div>
+              <div key={index} className="space-y-4">
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h4 className="font-medium text-base">告警规则 {index + 1}</h4>
+                    {logAlerts.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeLogAlert(index)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        删除
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-6">
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">应用选择器 *</Label>
+                      <Input
+                        placeholder='app="my-app"'
+                        value={alert.appSelector}
+                        onChange={e => updateLogAlert(index, 'appSelector', e.target.value)}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Loki标签选择器，如: app="my-app"
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">想监控的关键字 *</Label>
+                      <Input
+                        placeholder="ERROR"
+                        value={alert.logPattern}
+                        onChange={e => updateLogAlert(index, 'logPattern', e.target.value)}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        想要监控的关键字，不区分大小写，如: ERROR, WARN, exception
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">告警间隔(秒)</Label>
+                      <Input
+                        type="number"
+                        placeholder="60"
+                        value={alert.alertInterval || ''}
+                        onChange={e => updateLogAlert(index, 'alertInterval', e.target.value ? Number(e.target.value) : undefined)}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        可选，覆盖全局设置
+                      </p>
+                    </div>
+                  </div>
+                </Card>
                 
-                <div className="grid grid-cols-1 gap-6">
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">应用选择器 *</Label>
-                    <Input
-                      placeholder='app="my-app"'
-                      value={alert.appSelector}
-                      onChange={e => updateLogAlert(index, 'appSelector', e.target.value)}
-                      className="w-full"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Loki标签选择器，如: app="my-app"
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">日志模式 *</Label>
-                    <Input
-                      placeholder="ERROR"
-                      value={alert.logPattern}
-                      onChange={e => updateLogAlert(index, 'logPattern', e.target.value)}
-                      className="w-full"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      要匹配的日志模式，如: ERROR, WARN
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">告警间隔(秒)</Label>
-                    <Input
-                      type="number"
-                      placeholder="60"
-                      value={alert.alertInterval || ''}
-                      onChange={e => updateLogAlert(index, 'alertInterval', e.target.value ? Number(e.target.value) : undefined)}
-                      className="w-full"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      可选，覆盖全局设置
-                    </p>
-                  </div>
+                {/* Add alert rule button after each card */}
+                <div className="flex justify-center">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={addLogAlert}
+                    className="text-sm"
+                  >
+                    <IconPlus className="w-4 h-4 mr-2" />
+                    添加告警规则
+                  </Button>
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         </div>
@@ -438,19 +513,23 @@ export function CRCreateDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <IconPlus className="w-4 h-4 mr-2" />
-          Create {crdData?.spec?.names?.kind || 'Resource'}
-        </Button>
+        {trigger || (
+          <Button>
+            <IconPlus className="w-4 h-4 mr-2" />
+            {isEdit ? 'Edit' : 'Create'} {crdData?.spec?.names?.kind || 'Resource'}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Create {crdData?.spec?.names?.kind || 'Custom Resource'}
+            {isEdit ? 'Edit' : 'Create'} {crdData?.spec?.names?.kind || 'Custom Resource'}
           </DialogTitle>
           <DialogDescription>
-            Choose a template and configure the parameters to create a new{' '}
-            {crdData?.spec?.names?.kind || 'custom resource'}.
+            {isEdit 
+              ? `Edit the configuration for this ${crdData?.spec?.names?.kind || 'custom resource'}.`
+              : `Choose a template and configure the parameters to create a new ${crdData?.spec?.names?.kind || 'custom resource'}.`
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -525,18 +604,18 @@ export function CRCreateDialog({
             Cancel
           </Button>
           <Button
-            onClick={handleCreate}
+            onClick={handleSubmit}
             disabled={!selectedTemplate || isCreating}
           >
             {isCreating ? (
               <>
                 <IconLoader className="w-4 h-4 mr-2 animate-spin" />
-                Creating...
+                {isEdit ? 'Updating...' : 'Creating...'}
               </>
             ) : (
               <>
                 <IconPlus className="w-4 h-4 mr-2" />
-                Create
+                {isEdit ? 'Update' : 'Create'}
               </>
             )}
           </Button>

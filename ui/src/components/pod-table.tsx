@@ -1,15 +1,13 @@
 import { useMemo } from 'react'
 import { IconLoader } from '@tabler/icons-react'
 import { Pod } from 'kubernetes-types/core/v1'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { useResources } from '@/lib/api'
-import { getPodStatus } from '@/lib/k8s'
 import { formatDate } from '@/lib/utils'
 
-import { PodStatusIcon } from './pod-status-icon'
+import { PodStatusBadge } from './pod-status-badge'
 import { Column, SimpleTable } from './simple-table'
-import { Badge } from './ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
 export function PodTable(props: {
@@ -19,6 +17,7 @@ export function PodTable(props: {
   hiddenNode?: boolean
 }) {
   const { pods, isLoading } = props
+  const navigate = useNavigate()
 
   const namespace = pods?.[0]?.metadata?.namespace || ''
 
@@ -87,12 +86,18 @@ export function PodTable(props: {
         header: 'Status',
         accessor: (pod: Pod) => pod,
         cell: (value: unknown) => {
-          const status = getPodStatus(value as Pod)
+          const pod = value as Pod
+          const handleViewLogs = () => {
+            navigate(`/pods/${pod.metadata?.namespace}/${pod.metadata?.name}?tab=logs`)
+          }
+          
           return (
-            <Badge variant="outline" className="text-muted-foreground px-1.5">
-              <PodStatusIcon status={status} />
-              {status}
-            </Badge>
+            <PodStatusBadge 
+              pod={pod}
+              showHistoryButton={true}
+              showLogsButton={true}
+              onViewLogs={handleViewLogs}
+            />
           )
         },
       },

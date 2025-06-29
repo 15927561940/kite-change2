@@ -331,6 +331,23 @@ export const createCRResource = async (
   })
 }
 
+// Update CRD resource using dynamic path
+export const updateCRResource = async (
+  crdName: string,
+  namespace: string | undefined,
+  name: string,
+  body: any
+): Promise<any> => {
+  const endpoint = namespace 
+    ? `/${crdName}/${namespace}/${name}`
+    : `/${crdName}/_all/${name}`
+  return await apiClient.put<any>(`${endpoint}`, body, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
 export const deleteResource = async <T extends ResourceType>(
   resource: T,
   name: string,
@@ -943,6 +960,127 @@ export const createLogsSSEStream = (
   }
 
   return eventSource
+}
+
+// Pod history API types and functions
+export interface PodNodeHistory {
+  podName: string
+  namespace: string
+  currentNode: string
+  nodeHistory: NodeHistoryEntry[]
+  restartHistory: RestartHistoryEntry[]
+  events: any[]
+  status: PodStatusInfo
+}
+
+export interface NodeHistoryEntry {
+  nodeName: string
+  startTime: string
+  endTime?: string
+  reason: string
+  phase: string
+}
+
+export interface RestartHistoryEntry {
+  restartCount: number
+  lastRestartTime?: string
+  reason: string
+  exitCode?: number
+  message: string
+  containerStates: ContainerRestartInfo[]
+  events: any[]
+}
+
+export interface ContainerRestartInfo {
+  containerName: string
+  restartCount: number
+  lastRestartTime?: string
+  exitCode?: number
+  reason: string
+  message: string
+}
+
+export interface PodStatusInfo {
+  phase: string
+  conditions: any[]
+  containerStatuses: any[]
+  isReady: boolean
+  hasErrors: boolean
+  errorMessage?: string
+  qosClass: string
+  startTime?: string
+}
+
+// Fetch Pod history for a specific Pod
+export const fetchPodHistory = (
+  namespace: string,
+  podName: string
+): Promise<PodNodeHistory> => {
+  const endpoint = `/pods/${namespace}/${podName}/history`
+  return fetchAPI<PodNodeHistory>(endpoint)
+}
+
+// Fetch Pod history for multiple Pods in a namespace
+export const fetchPodsHistoryBatch = (
+  namespace: string,
+  options?: {
+    labelSelector?: string
+    limit?: number
+  }
+): Promise<{ histories: PodNodeHistory[]; total: number }> => {
+  let endpoint = `/pods/${namespace}/history`
+  const params = new URLSearchParams()
+  
+  if (options?.labelSelector) {
+    params.append('labelSelector', options.labelSelector)
+  }
+  if (options?.limit) {
+    params.append('limit', options.limit.toString())
+  }
+  
+  if (params.toString()) {
+    endpoint += `?${params.toString()}`
+  }
+  
+  return fetchAPI<{ histories: PodNodeHistory[]; total: number }>(endpoint)
+}
+
+// React Query hooks for Pod history
+export const usePodHistory = (
+  namespace: string,
+  podName: string,
+  options?: { staleTime?: number; refreshInterval?: number }
+) => {
+  return useQuery({
+    queryKey: ['pod-history', namespace, podName],
+    queryFn: () => fetchPodHistory(namespace, podName),
+    enabled: !!namespace && !!podName,
+    staleTime: options?.staleTime || 30000, // 30 seconds cache
+    refetchInterval: options?.refreshInterval || 0,
+    placeholderData: (prevData) => prevData,
+  })
+}
+
+export const usePodsHistoryBatch = (
+  namespace: string,
+  options?: {
+    staleTime?: number
+    refreshInterval?: number
+    labelSelector?: string
+    limit?: number
+  }
+) => {
+  return useQuery({
+    queryKey: ['pods-history-batch', namespace, options?.labelSelector, options?.limit],
+    queryFn: () => fetchPodsHistoryBatch(namespace, {
+      labelSelector: options?.labelSelector,
+      limit: options?.limit,
+    }),
+    enabled: !!namespace,
+    staleTime: options?.staleTime || 30000, // 30 seconds cache
+    refetchInterval: options?.refreshInterval || 60000, // Refresh every minute
+    placeholderData: (prevData) => prevData,
+  })
 }
 
 // Hook for streaming logs with SSE and real-time updates

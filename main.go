@@ -107,6 +107,10 @@ func setupAPIRouter(r *gin.Engine, k8sClient *kube.K8sClient, promClient *promet
 		resourceApplyHandler := handlers.NewResourceApplyHandler(k8sClient)
 		api.POST("/resources/apply", resourceApplyHandler.ApplyResource)
 
+		// Pod history handler
+		podHistoryHandler := handlers.NewPodHistoryHandler(k8sClient.ClientSet)
+		podHistoryHandler.RegisterRoutes(api)
+
 		resources.RegisterRoutes(api, k8sClient)
 	}
 }

@@ -42,6 +42,7 @@ import { LabelsAnno } from '@/components/lables-anno'
 import { LogViewer } from '@/components/log-viewer'
 import { PodMonitoring } from '@/components/pod-monitoring'
 import { PodTable } from '@/components/pod-table'
+import { PodHistoryOverview } from '@/components/pod-history-overview'
 import { ServiceTable } from '@/components/service-table'
 import { Terminal } from '@/components/terminal'
 import { VolumeTable } from '@/components/volume-table'
@@ -608,11 +609,18 @@ export function DeploymentDetail(props: { namespace: string; name: string }) {
                     </>
                   ),
                   content: (
-                    <PodTable
-                      pods={relatedPods}
-                      isLoading={isLoadingRelated}
-                      labelSelector={labelSelector}
-                    />
+                    <div className="space-y-6">
+                      <PodHistoryOverview
+                        namespace={namespace}
+                        labelSelector={labelSelector}
+                        pods={relatedPods}
+                      />
+                      <PodTable
+                        pods={relatedPods}
+                        isLoading={isLoadingRelated}
+                        labelSelector={labelSelector}
+                      />
+                    </div>
                   ),
                 },
                 {

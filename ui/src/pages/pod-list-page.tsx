@@ -1,17 +1,16 @@
 import { useCallback, useMemo } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Pod } from 'kubernetes-types/core/v1'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
-import { getPodStatus } from '@/lib/k8s'
 import { formatDate } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
-import { PodStatusIcon } from '@/components/pod-status-icon'
+import { PodStatusBadge } from '@/components/pod-status-badge'
 import { ResourceTable } from '@/components/resource-table'
 
 export function PodListPage() {
   // Define column helper outside of any hooks
   const columnHelper = createColumnHelper<Pod>()
+  const navigate = useNavigate()
 
   // Define columns for the pod table - moved outside render cycle for better performance
   const columns = useMemo(
@@ -47,12 +46,18 @@ export function PodListPage() {
         header: 'Status',
         enableColumnFilter: true,
         cell: ({ row }) => {
-          const status = getPodStatus(row.original)
+          const pod = row.original
+          const handleViewLogs = () => {
+            navigate(`/pods/${pod.metadata?.namespace}/${pod.metadata?.name}?tab=logs`)
+          }
+          
           return (
-            <Badge variant="outline" className="text-muted-foreground px-1.5">
-              <PodStatusIcon status={status} />
-              {status}
-            </Badge>
+            <PodStatusBadge 
+              pod={pod}
+              showHistoryButton={true}
+              showLogsButton={true}
+              onViewLogs={handleViewLogs}
+            />
           )
         },
       }),
