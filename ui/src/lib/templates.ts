@@ -480,17 +480,25 @@ export const CRD_TEMPLATES: Record<string, CRTemplate[]> = {
           },
         },
         spec: {
+          workloadNameSpace: '{{workloadNameSpace}}',
           ragFlowEndpoint: '{{ragFlowEndpoint}}',
           ragFlowToken: '{{ragFlowToken}}',
-          workloadNameSpace: '{{workloadNameSpace}}',
+          chatId: '{{chatId}}',
+          chatName: '{{chatName}}',
+          feishuWebhook: '{{feishuWebhook}}',
+          alertInterval: '{{alertInterval}}',
         },
       },
       fields: [
-        { key: 'name', label: 'Name', type: 'string', required: true, placeholder: 'raglogpilot-sample' },
+        { key: 'name', label: 'Name', type: 'string', required: true, default: 'raglogpilot-sample' },
         { key: 'namespace', label: 'Namespace', type: 'namespace', required: true, default: 'default' },
-        { key: 'ragFlowEndpoint', label: 'RAG Flow Endpoint', type: 'string', required: true, placeholder: 'http://172.16.0.111/v1/api' },
-        { key: 'ragFlowToken', label: 'RAG Flow Token', type: 'string', required: true, placeholder: 'ragflow-IyNDQyMDYyNGI3YTExZjBhMzAzMDI0Mm' },
         { key: 'workloadNameSpace', label: 'Workload Namespace', type: 'namespace', required: true, default: 'default' },
+        { key: 'ragFlowEndpoint', label: 'RAG Flow Endpoint', type: 'string', required: true, default: 'http://172.16.0.111/v1/api' },
+        { key: 'ragFlowToken', label: 'RAG Flow Token', type: 'string', required: true, default: 'ragflow-IyNDQyMDYyNGI3YTExZjBhMzAzMDI0Mm' },
+        { key: 'chatId', label: 'Chat ID', type: 'string', required: false, default: '', description: '指定具体的Chat ID（可选，如果不指定会使用第一个可用的chat）' },
+        { key: 'chatName', label: 'Chat Name', type: 'string', required: false, default: '', description: '指定Chat名称（可选，如果指定了Chat ID则忽略此字段）' },
+        { key: 'feishuWebhook', label: 'Feishu Webhook', type: 'string', required: false, default: '', description: '飞书机器人Webhook URL（可选）' },
+        { key: 'alertInterval', label: 'Alert Interval', type: 'string', required: false, default: '5m', description: '告警间隔时间，如 5m, 10m, 30m' },
         { key: 'managedBy', label: 'Managed By', type: 'string', required: false, default: 'kustomize' },
         { key: 'appName', label: 'App Name', type: 'string', required: false, default: 'ragflow-ziji-zhishiku' },
       ],
@@ -540,11 +548,34 @@ export function applyTemplate(template: CRTemplate, values: Record<string, any>)
   template.fields.forEach(field => {
     const value = values[field.key] !== undefined ? values[field.key] : field.default
     const regex = new RegExp(`{{${field.key}}}`, 'g')
-    result = result.replace(regex, String(value))
+    result = result.replace(regex, String(value || ''))
   })
   
   try {
-    return JSON.parse(result)
+    const parsed = JSON.parse(result)
+    
+    // Clean up empty optional fields from spec
+    if (parsed.spec) {
+      const cleanedSpec: Record<string, any> = {}
+      template.fields.forEach(field => {
+        const value = values[field.key] !== undefined ? values[field.key] : field.default
+        if (field.required || (value !== undefined && value !== null && value !== '')) {
+          cleanedSpec[field.key] = value
+        }
+      })
+      
+      // Special handling for metadata fields
+      const metadataFields = ['name', 'namespace', 'managedBy', 'appName']
+      metadataFields.forEach(field => {
+        if (cleanedSpec[field] !== undefined) {
+          delete cleanedSpec[field]
+        }
+      })
+      
+      parsed.spec = cleanedSpec
+    }
+    
+    return parsed
   } catch (error) {
     console.error('Failed to parse template result:', error)
     throw new Error('Template parsing failed')

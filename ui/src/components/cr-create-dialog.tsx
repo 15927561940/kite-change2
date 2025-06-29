@@ -63,14 +63,27 @@ export function CRCreateDialog({
     if (selectedTemplate) {
       const defaultValues: Record<string, any> = {}
       selectedTemplate.fields.forEach(field => {
-        if (field.default !== undefined) {
+        // 总是设置默认值，即使是空字符串
+        if (field.default !== undefined && field.default !== null) {
           defaultValues[field.key] = field.default
+        } else if (field.type === 'string' && field.placeholder) {
+          // 如果没有默认值但有placeholder，使用placeholder作为默认值
+          defaultValues[field.key] = field.placeholder
+        } else if (field.type === 'number') {
+          defaultValues[field.key] = field.default || 0
+        } else if (field.type === 'boolean') {
+          defaultValues[field.key] = field.default || false
+        } else {
+          defaultValues[field.key] = ''
         }
+        
         // Set default namespace for namespaced resources
         if (field.key === 'namespace' && defaultNamespace) {
           defaultValues[field.key] = defaultNamespace
         }
       })
+      
+      console.log('Setting default values:', defaultValues)
       setFormValues(defaultValues)
       setValidationErrors([])
     }
@@ -96,17 +109,22 @@ export function CRCreateDialog({
     }
 
     setIsCreating(true)
+    
+    // Prepare variables for error logging
+    let resource: any = undefined
+    let namespaceForApi: string | undefined = undefined
+    
     try {
       // Apply template to generate resource
-      const resource = applyTemplate(selectedTemplate, formValues)
+      resource = applyTemplate(selectedTemplate, formValues)
       
       // Determine namespace for API call
-      const namespace = crdData?.spec?.scope === 'Cluster' 
+      namespaceForApi = crdData?.spec?.scope === 'Cluster' 
         ? undefined 
         : formValues.namespace || defaultNamespace
 
       // Create the resource using CRD API
-      await createCRResource(crdName, namespace, resource)
+      await createCRResource(crdName, namespaceForApi, resource)
       
       toast.success(`${selectedTemplate.crdKind} created successfully`)
       setOpen(false)
@@ -119,10 +137,41 @@ export function CRCreateDialog({
       }
     } catch (error) {
       console.error('Failed to create custom resource:', error)
+      
+      // Ensure namespace is set for error logging
+      if (!namespaceForApi) {
+        namespaceForApi = crdData?.spec?.scope === 'Cluster' 
+          ? undefined 
+          : formValues.namespace || defaultNamespace
+      }
+      
+      console.error('Request details:', {
+        crdName,
+        namespace: namespaceForApi,
+        resource: resource || 'resource generation failed',
+        endpoint: namespaceForApi ? `/${crdName}/${namespaceForApi}` : `/${crdName}/_all`
+      })
+      
+      let errorMessage = 'Unknown error'
+      if (error instanceof Error) {
+        errorMessage = error.message
+        console.error('Error stack:', error.stack)
+      }
+      
+      // 如果是网络错误，尝试提供更多信息
+      if (error && typeof error === 'object' && 'response' in error) {
+        const response = (error as any).response
+        console.error('Response status:', response?.status)
+        console.error('Response data:', response?.data)
+        errorMessage = `HTTP ${response?.status}: ${response?.data?.message || response?.statusText || errorMessage}`
+      }
+      
       toast.error(
-        `Failed to create ${selectedTemplate.crdKind}: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
+        `Failed to create ${selectedTemplate.crdKind}: ${errorMessage}`,
+        {
+          duration: 10000, // 显示10秒以便用户看到完整错误
+          description: `Endpoint: ${namespaceForApi ? `/${crdName}/${namespaceForApi}` : `/${crdName}/_all`}`
+        }
       )
     } finally {
       setIsCreating(false)
