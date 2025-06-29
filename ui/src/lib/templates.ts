@@ -462,14 +462,14 @@ export const CRD_TEMPLATES: Record<string, CRTemplate[]> = {
   ],
 
   // RAG Log Pilot (实际的CRD结构)
-  'raglogpilots.log.aiops.com': [
+  'raglogpilots.log.aiops.com.aiops.com': [
     {
       name: 'RAG Log Pilot Sample',
       description: 'A sample RAG Log Pilot for AI log analysis',
       crdKind: 'RagLogPilot',
-      apiVersion: 'log.aiops.com/v1',
+      apiVersion: 'log.aiops.com.aiops.com/v1',
       template: {
-        apiVersion: 'log.aiops.com/v1',
+        apiVersion: 'log.aiops.com.aiops.com/v1',
         kind: 'RagLogPilot',
         metadata: {
           name: '{{name}}',
@@ -490,17 +490,17 @@ export const CRD_TEMPLATES: Record<string, CRTemplate[]> = {
         },
       },
       fields: [
-        { key: 'name', label: 'Name', type: 'string', required: true, default: 'raglogpilot-sample' },
-        { key: 'namespace', label: 'Namespace', type: 'namespace', required: true, default: 'default' },
-        { key: 'workloadNameSpace', label: 'Workload Namespace', type: 'namespace', required: true, default: 'default' },
-        { key: 'ragFlowEndpoint', label: 'RAG Flow Endpoint', type: 'string', required: true, default: 'http://172.16.0.111/v1/api' },
-        { key: 'ragFlowToken', label: 'RAG Flow Token', type: 'string', required: true, default: 'ragflow-IyNDQyMDYyNGI3YTExZjBhMzAzMDI0Mm' },
-        { key: 'chatId', label: 'Chat ID', type: 'string', required: false, default: '', description: '指定具体的Chat ID（可选，如果不指定会使用第一个可用的chat）' },
-        { key: 'chatName', label: 'Chat Name', type: 'string', required: false, default: '', description: '指定Chat名称（可选，如果指定了Chat ID则忽略此字段）' },
-        { key: 'feishuWebhook', label: 'Feishu Webhook', type: 'string', required: false, default: '', description: '飞书机器人Webhook URL（可选）' },
-        { key: 'alertInterval', label: 'Alert Interval', type: 'string', required: false, default: '5m', description: '告警间隔时间，如 5m, 10m, 30m' },
-        { key: 'managedBy', label: 'Managed By', type: 'string', required: false, default: 'kustomize' },
-        { key: 'appName', label: 'App Name', type: 'string', required: false, default: 'ragflow-ziji-zhishiku' },
+        { key: 'name', label: '资源名称', type: 'string', required: true, default: 'raglogpilot-sample-2', placeholder: 'raglogpilot-sample-2' },
+        { key: 'namespace', label: 'Namespace', type: 'namespace', required: false, default: 'default', description: 'Kubernetes namespace (可选，默认为default)' },
+        { key: 'workloadNameSpace', label: '监控的工作负载命名空间', type: 'namespace', required: true, default: 'default', description: '需要监控Pod日志的命名空间' },
+        { key: 'ragFlowEndpoint', label: 'RAG Flow API 端点', type: 'string', required: true, default: 'http://172.16.0.111/v1/api', placeholder: 'http://172.16.0.111/v1/api' },
+        { key: 'ragFlowToken', label: 'RAG Flow Token', type: 'string', required: true, default: 'ragflow-IyNDQyMDYyNGI3YTExZjBhMzAzMDI0Mm', placeholder: 'ragflow-xxx' },
+        { key: 'chatId', label: 'Chat ID', type: 'string', required: false, default: '', placeholder: '可选：指定具体的Chat ID', description: '指定具体的Chat ID（可选，如果不指定会使用第一个可用的chat）' },
+        { key: 'chatName', label: 'Chat Name', type: 'string', required: false, default: '', placeholder: '可选：指定Chat名称', description: '指定Chat名称（可选，如果指定了Chat ID则忽略此字段）' },
+        { key: 'feishuWebhook', label: '飞书Webhook URL', type: 'string', required: false, default: '', placeholder: '可选：https://open.feishu.cn/xxx', description: '飞书机器人Webhook URL（可选）' },
+        { key: 'alertInterval', label: '告警间隔', type: 'string', required: false, default: '5m', placeholder: '5m', description: '告警间隔时间，如 5m, 10m, 30m' },
+        { key: 'managedBy', label: 'Managed By', type: 'string', required: false, default: 'kite', description: '资源管理标签' },
+        { key: 'appName', label: 'App Name', type: 'string', required: false, default: 'ragflow-ziji-zhishiku', description: '应用名称标签' },
       ],
     },
   ],
@@ -508,8 +508,8 @@ export const CRD_TEMPLATES: Record<string, CRTemplate[]> = {
   // Generic template for unknown CRDs
   'default': [
     {
-      name: 'Basic Resource',
-      description: 'A basic custom resource template',
+      name: '基础自定义资源',
+      description: '通用的自定义资源模板，可以创建任何CRD实例',
       crdKind: 'CustomResource',
       apiVersion: 'example.com/v1',
       template: {
@@ -518,17 +518,44 @@ export const CRD_TEMPLATES: Record<string, CRTemplate[]> = {
         metadata: {
           name: '{{name}}',
           namespace: '{{namespace}}',
+          labels: {
+            'app.kubernetes.io/managed-by': '{{managedBy}}',
+            'app.kubernetes.io/name': '{{appName}}',
+          },
         },
         spec: {
           replicas: '{{replicas}}',
         },
       },
       fields: [
-        { key: 'name', label: 'Name', type: 'string', required: true, placeholder: 'my-resource' },
-        { key: 'namespace', label: 'Namespace', type: 'string', required: true, default: 'default' },
-        { key: 'kind', label: 'Kind', type: 'string', required: true, placeholder: 'MyResource' },
-        { key: 'apiVersion', label: 'API Version', type: 'string', required: true, placeholder: 'example.com/v1' },
-        { key: 'replicas', label: 'Replicas', type: 'number', required: false, default: 1 },
+        { key: 'name', label: '资源名称', type: 'string', required: true, placeholder: 'my-custom-resource' },
+        { key: 'namespace', label: 'Namespace', type: 'namespace', required: false, default: 'default', description: 'Kubernetes namespace (可选，集群级别资源无需指定)' },
+        { key: 'kind', label: 'Kind', type: 'string', required: true, placeholder: 'MyCustomResource', description: 'CRD的Kind名称' },
+        { key: 'apiVersion', label: 'API Version', type: 'string', required: true, placeholder: 'example.com/v1', description: 'CRD的API版本' },
+        { key: 'replicas', label: 'Replicas', type: 'number', required: false, default: 1, description: '副本数（如果CRD支持）' },
+        { key: 'managedBy', label: 'Managed By', type: 'string', required: false, default: 'kite', description: '资源管理标签' },
+        { key: 'appName', label: 'App Name', type: 'string', required: false, default: 'custom-app', description: '应用名称标签' },
+      ],
+    },
+    {
+      name: '自定义YAML模板',
+      description: '使用自定义YAML创建任何CRD资源',
+      crdKind: 'CustomYaml',
+      apiVersion: 'custom/v1',
+      template: {
+        apiVersion: '{{apiVersion}}',
+        kind: '{{kind}}',
+        metadata: {
+          name: '{{name}}',
+          namespace: '{{namespace}}',
+        },
+        spec: {},
+      },
+      fields: [
+        { key: 'name', label: '资源名称', type: 'string', required: true, placeholder: 'my-resource' },
+        { key: 'namespace', label: 'Namespace', type: 'namespace', required: false, default: 'default', description: 'Kubernetes namespace (可选)' },
+        { key: 'kind', label: 'Kind', type: 'string', required: true, placeholder: 'MyKind', description: 'CRD的Kind名称' },
+        { key: 'apiVersion', label: 'API Version', type: 'string', required: true, placeholder: 'group.example.com/v1', description: 'CRD的完整API版本' },
       ],
     },
   ],

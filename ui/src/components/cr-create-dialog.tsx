@@ -63,22 +63,20 @@ export function CRCreateDialog({
     if (selectedTemplate) {
       const defaultValues: Record<string, any> = {}
       selectedTemplate.fields.forEach(field => {
-        // 总是设置默认值，即使是空字符串
-        if (field.default !== undefined && field.default !== null) {
+        // 优先使用字段的默认值
+        if (field.default !== undefined && field.default !== null && field.default !== '') {
           defaultValues[field.key] = field.default
-        } else if (field.type === 'string' && field.placeholder) {
-          // 如果没有默认值但有placeholder，使用placeholder作为默认值
-          defaultValues[field.key] = field.placeholder
         } else if (field.type === 'number') {
           defaultValues[field.key] = field.default || 0
         } else if (field.type === 'boolean') {
           defaultValues[field.key] = field.default || false
         } else {
+          // 对于string类型，如果没有默认值则留空，让用户手动填写或使用Tab补全
           defaultValues[field.key] = ''
         }
         
         // Set default namespace for namespaced resources
-        if (field.key === 'namespace' && defaultNamespace) {
+        if (field.key === 'namespace' && defaultNamespace && !field.default) {
           defaultValues[field.key] = defaultNamespace
         }
       })
@@ -88,6 +86,14 @@ export function CRCreateDialog({
       setValidationErrors([])
     }
   }, [selectedTemplate, defaultNamespace])
+
+  // Handle Tab key for auto-completion
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, field: TemplateField) => {
+    if (e.key === 'Tab' && field.placeholder && !formValues[field.key]) {
+      e.preventDefault()
+      setFormValues(prev => ({ ...prev, [field.key]: field.placeholder }))
+    }
+  }
 
   const handleFieldChange = (fieldKey: string, value: any) => {
     setFormValues(prev => ({ ...prev, [fieldKey]: value }))
@@ -292,11 +298,17 @@ export function CRCreateDialog({
             )}
             <Input
               id={field.key}
-              placeholder={field.placeholder}
+              placeholder={field.placeholder ? `${field.placeholder} (Tab键快速填充)` : undefined}
               value={value || ''}
               onChange={e => handleFieldChange(field.key, e.target.value)}
+              onKeyDown={e => handleKeyDown(e, field)}
               className={hasError ? 'border-destructive' : ''}
             />
+            {field.placeholder && !value && (
+              <p className="text-xs text-muted-foreground">
+                提示：按Tab键快速填充 "{field.placeholder}"
+              </p>
+            )}
           </div>
         )
     }
