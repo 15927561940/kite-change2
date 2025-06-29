@@ -351,15 +351,15 @@ export function CRCreateDialog({
     return (
       <div className="space-y-6">
         {/* Basic Configuration */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           <h3 className="text-lg font-medium">基础配置</h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-6">
             {basicFields.map(renderField)}
           </div>
         </div>
 
         {/* Log Alerts Section */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">日志告警规则</h3>
             <Button type="button" variant="outline" size="sm" onClick={addLogAlert}>
@@ -368,11 +368,11 @@ export function CRCreateDialog({
             </Button>
           </div>
           
-          <div className="space-y-4">
+          <div className="space-y-6">
             {logAlerts.map((alert, index) => (
-              <Card key={index} className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-medium">告警规则 {index + 1}</h4>
+              <Card key={index} className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="font-medium text-base">告警规则 {index + 1}</h4>
                   {logAlerts.length > 1 && (
                     <Button
                       type="button"
@@ -386,38 +386,41 @@ export function CRCreateDialog({
                   )}
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>应用选择器 *</Label>
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">应用选择器 *</Label>
                     <Input
                       placeholder='app="my-app"'
                       value={alert.appSelector}
                       onChange={e => updateLogAlert(index, 'appSelector', e.target.value)}
+                      className="w-full"
                     />
                     <p className="text-xs text-muted-foreground">
                       Loki标签选择器，如: app="my-app"
                     </p>
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label>日志模式 *</Label>
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">日志模式 *</Label>
                     <Input
                       placeholder="ERROR"
                       value={alert.logPattern}
                       onChange={e => updateLogAlert(index, 'logPattern', e.target.value)}
+                      className="w-full"
                     />
                     <p className="text-xs text-muted-foreground">
                       要匹配的日志模式，如: ERROR, WARN
                     </p>
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label>告警间隔(秒)</Label>
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">告警间隔(秒)</Label>
                     <Input
                       type="number"
                       placeholder="60"
                       value={alert.alertInterval || ''}
                       onChange={e => updateLogAlert(index, 'alertInterval', e.target.value ? Number(e.target.value) : undefined)}
+                      className="w-full"
                     />
                     <p className="text-xs text-muted-foreground">
                       可选，覆盖全局设置

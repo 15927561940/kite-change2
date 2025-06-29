@@ -474,117 +474,22 @@ export const CRD_TEMPLATES: Record<string, CRTemplate[]> = {
         metadata: {
           name: '{{name}}',
           namespace: '{{namespace}}',
-          labels: {
-            'app.kubernetes.io/managed-by': '{{managedBy}}',
-            'app.kubernetes.io/name': '{{appName}}',
-          },
         },
         spec: {
           lokiURL: '{{lokiURL}}',
-          alertInterval: '{{alertInterval}}',
-          logAlerts: [
-            {
-              appSelector: '{{appSelector1}}',
-              logPattern: '{{logPattern1}}',
-              alertInterval: '{{alertInterval1}}',
-            },
-          ],
-          llmEndpoint: '{{llmEndpoint}}',
-          llmToken: '{{llmToken}}',
-          llmModel: '{{llmModel}}',
           feishuWebhook: '{{feishuWebhook}}',
+          logAlerts: [],
         },
       },
       fields: [
         { key: 'name', label: '资源名称', type: 'string', required: true, default: 'logpilot-sample', placeholder: 'logpilot-sample' },
-        { key: 'namespace', label: 'Namespace', type: 'namespace', required: false, default: 'default', description: 'Kubernetes namespace (可选，默认为default)' },
-        
-        // Loki 配置
-        { key: 'lokiURL', label: 'Loki URL', type: 'string', required: true, default: 'http://loki29.loki.svc.cluster.local:3100', placeholder: 'http://loki29.loki.svc.cluster.local:3100', description: 'Loki服务的完整URL地址' },
-        { key: 'alertInterval', label: '全局告警间隔(秒)', type: 'number', required: false, default: 300, placeholder: '300', description: '全局告警间隔时间，单位秒（如300=5分钟）' },
-        
-        // 第一个日志告警规则
-        { key: 'appSelector1', label: '应用选择器1', type: 'string', required: true, default: 'app="log-generator"', placeholder: 'app="log-generator"', description: 'Loki标签选择器，如: app="my-app"' },
-        { key: 'logPattern1', label: '日志模式1', type: 'string', required: true, default: 'ERROR', placeholder: 'ERROR', description: '要匹配的日志模式，如: ERROR, WARN, FATAL' },
-        { key: 'alertInterval1', label: '告警间隔1(秒)', type: 'number', required: false, default: 60, placeholder: '60', description: '此规则的告警间隔，覆盖全局设置' },
-        
-        // LLM 配置
-        { key: 'llmEndpoint', label: 'LLM API端点', type: 'string', required: false, default: 'https://vip.apiyi.com/v1', placeholder: 'https://vip.apiyi.com/v1', description: 'LLM API服务端点（可选）' },
-        { key: 'llmToken', label: 'LLM Token', type: 'string', required: false, default: '', placeholder: 'sk-V7WRvOG3cTF7yh5v27EfF9B2420c493cB9E52280686c7bF0', description: 'LLM API访问令牌（可选）' },
-        { key: 'llmModel', label: 'LLM模型', type: 'string', required: false, default: 'gpt-4o', placeholder: 'gpt-4o', description: 'LLM模型名称（可选）' },
-        
-        // 告警配置
-        { key: 'feishuWebhook', label: '飞书Webhook URL', type: 'string', required: true, default: '', placeholder: 'https://open.feishu.cn/open-apis/bot/v2/hook/xxx', description: '飞书机器人Webhook URL' },
-        
-        // 标签配置
-        { key: 'managedBy', label: 'Managed By', type: 'string', required: false, default: 'kite', description: '资源管理标签' },
-        { key: 'appName', label: 'App Name', type: 'string', required: false, default: 'loki-log-pilot', description: '应用名称标签' },
-      ],
-    },
-    {
-      name: 'Log Pilot 高级配置',
-      description: '支持多个日志告警规则的高级配置',
-      crdKind: 'LogPilot',
-      apiVersion: 'log.aiops.com/v1',
-      template: {
-        apiVersion: 'log.aiops.com/v1',
-        kind: 'LogPilot',
-        metadata: {
-          name: '{{name}}',
-          namespace: '{{namespace}}',
-        },
-        spec: {
-          lokiURL: '{{lokiURL}}',
-          alertInterval: '{{alertInterval}}',
-          logAlerts: [
-            {
-              appSelector: '{{appSelector1}}',
-              logPattern: '{{logPattern1}}',
-              alertInterval: '{{alertInterval1}}',
-            },
-            {
-              appSelector: '{{appSelector2}}',
-              logPattern: '{{logPattern2}}',
-              alertInterval: '{{alertInterval2}}',
-            },
-            {
-              appSelector: '{{appSelector3}}',
-              logPattern: '{{logPattern3}}',
-            },
-          ],
-          llmEndpoint: '{{llmEndpoint}}',
-          llmToken: '{{llmToken}}',
-          llmModel: '{{llmModel}}',
-          feishuWebhook: '{{feishuWebhook}}',
-        },
-      },
-      fields: [
-        { key: 'name', label: '资源名称', type: 'string', required: true, default: 'logpilot-advanced', placeholder: 'logpilot-advanced' },
         { key: 'namespace', label: 'Namespace', type: 'namespace', required: false, default: 'default', description: 'Kubernetes namespace (可选)' },
-        
-        // Loki 配置
-        { key: 'lokiURL', label: 'Loki URL', type: 'string', required: true, default: 'http://loki29.loki.svc.cluster.local:3100', placeholder: 'http://loki29.loki.svc.cluster.local:3100' },
-        { key: 'alertInterval', label: '全局告警间隔(秒)', type: 'number', required: false, default: 300, placeholder: '300' },
-        
-        // 多个日志告警规则
-        { key: 'appSelector1', label: '应用选择器1', type: 'string', required: true, default: 'app="log-generator"', placeholder: 'app="log-generator"' },
-        { key: 'logPattern1', label: '日志模式1', type: 'string', required: true, default: 'ERROR', placeholder: 'ERROR' },
-        { key: 'alertInterval1', label: '告警间隔1(秒)', type: 'number', required: false, default: 60, placeholder: '60' },
-        
-        { key: 'appSelector2', label: '应用选择器2', type: 'string', required: false, default: 'app="log-generator2"', placeholder: 'app="log-generator2"' },
-        { key: 'logPattern2', label: '日志模式2', type: 'string', required: false, default: 'ERROR', placeholder: 'ERROR' },
-        { key: 'alertInterval2', label: '告警间隔2(秒)', type: 'number', required: false, default: '', placeholder: '使用全局设置' },
-        
-        { key: 'appSelector3', label: '应用选择器3', type: 'string', required: false, default: 'app="loki29-filebeat"', placeholder: 'app="loki29-filebeat"' },
-        { key: 'logPattern3', label: '日志模式3', type: 'string', required: false, default: 'esclientleg', placeholder: 'esclientleg' },
-        
-        // LLM 配置
-        { key: 'llmEndpoint', label: 'LLM API端点', type: 'string', required: false, default: 'https://vip.apiyi.com/v1', placeholder: 'https://vip.apiyi.com/v1' },
-        { key: 'llmToken', label: 'LLM Token', type: 'string', required: false, default: '', placeholder: 'sk-xxx（可选）' },
-        { key: 'llmModel', label: 'LLM模型', type: 'string', required: false, default: 'gpt-4o', placeholder: 'gpt-4o' },
-        
-        // 告警配置
-        { key: 'feishuWebhook', label: '飞书Webhook URL', type: 'string', required: true, default: '', placeholder: 'https://open.feishu.cn/open-apis/bot/v2/hook/xxx' },
+        { key: 'lokiURL', label: 'Loki URL', type: 'string', required: true, default: 'http://loki29.loki.svc.cluster.local:3100', placeholder: 'http://loki29.loki.svc.cluster.local:3100', description: 'Loki服务地址' },
+        { key: 'feishuWebhook', label: '飞书Webhook URL', type: 'string', required: true, default: '', placeholder: 'https://open.feishu.cn/open-apis/bot/v2/hook/xxx', description: '飞书机器人Webhook URL' },
+        { key: 'alertInterval', label: '全局告警间隔(秒)', type: 'number', required: false, default: 300, placeholder: '300', description: '全局告警间隔，单位秒' },
+        { key: 'llmEndpoint', label: 'LLM API端点', type: 'string', required: false, default: 'https://vip.apiyi.com/v1', placeholder: 'https://vip.apiyi.com/v1', description: 'LLM API服务端点（可选）' },
+        { key: 'llmToken', label: 'LLM Token', type: 'string', required: false, default: '', placeholder: 'sk-xxx', description: 'LLM API访问令牌（可选）' },
+        { key: 'llmModel', label: 'LLM模型', type: 'string', required: false, default: 'gpt-4o', placeholder: 'gpt-4o', description: 'LLM模型名称（可选）' },
       ],
     },
   ],
