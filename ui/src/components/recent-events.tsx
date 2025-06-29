@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { IconAlertTriangle, IconInfoCircle, IconX } from '@tabler/icons-react'
-import { formatDistanceToNow } from 'date-fns'
+import { safeFormatDistanceToNow, createValidDate } from '@/lib/date-utils'
 
 import { useResources } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
@@ -19,12 +19,18 @@ export function RecentEvents() {
 
   const events = useMemo(() => {
     return data?.slice().sort((a, b) => {
-      const dateA = new Date(
-        a.metadata.creationTimestamp || a.firstTimestamp || ''
+      const dateA = createValidDate(
+        a.metadata.creationTimestamp || a.firstTimestamp
       )
-      const dateB = new Date(
-        b.metadata.creationTimestamp || b.firstTimestamp || ''
+      const dateB = createValidDate(
+        b.metadata.creationTimestamp || b.firstTimestamp
       )
+      
+      // Handle null dates - put them at the end
+      if (!dateA && !dateB) return 0
+      if (!dateA) return 1
+      if (!dateB) return -1
+      
       return dateB.getTime() - dateA.getTime() // Sort by most recent first
     })
   }, [data])
@@ -138,12 +144,9 @@ export function RecentEvents() {
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground whitespace-nowrap">
-                      {formatDistanceToNow(
-                        new Date(
-                          event.metadata.creationTimestamp ||
-                            event.firstTimestamp ||
-                            ''
-                        ),
+                      {safeFormatDistanceToNow(
+                        event.metadata.creationTimestamp ||
+                          event.firstTimestamp,
                         {
                           addSuffix: true,
                         }

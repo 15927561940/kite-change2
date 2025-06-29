@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { IconHistory, IconServer, IconRefresh, IconAlertTriangle, IconTrendingUp } from '@tabler/icons-react'
-import { formatDistanceToNow } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
+import { safeFormatDistanceToNow } from '@/lib/date-utils'
 
 import { usePodsHistoryBatch } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -104,16 +103,19 @@ export function PodHistoryOverview({
         history.restartHistory.forEach(restart => {
           if (restart.lastRestartTime) {
             const restartTime = new Date(restart.lastRestartTime)
-            const hoursSinceRestart = (Date.now() - restartTime.getTime()) / (1000 * 60 * 60)
-            
-            if (hoursSinceRestart < 24) { // Restarts in last 24 hours
-              alerts.push({
-                type: 'restart',
-                podName: history.podName,
-                message: `Container restarted ${restart.restartCount} times - ${restart.reason}`,
-                timestamp: restartTime,
-                severity: restart.restartCount > 5 ? 'high' : 'medium'
-              })
+            // Check if the date is valid
+            if (!isNaN(restartTime.getTime())) {
+              const hoursSinceRestart = (Date.now() - restartTime.getTime()) / (1000 * 60 * 60)
+              
+              if (hoursSinceRestart < 24) { // Restarts in last 24 hours
+                alerts.push({
+                  type: 'restart',
+                  podName: history.podName,
+                  message: `Container restarted ${restart.restartCount} times - ${restart.reason}`,
+                  timestamp: restartTime,
+                  severity: restart.restartCount > 5 ? 'high' : 'medium'
+                })
+              }
             }
           }
         })
@@ -122,17 +124,22 @@ export function PodHistoryOverview({
       // Node changes (recent migrations)
       if (history.nodeHistory && Array.isArray(history.nodeHistory) && history.nodeHistory.length > 1) {
         const recentChange = history.nodeHistory[1] // Second most recent (current is first)
-        const changeTime = new Date(recentChange.startTime)
-        const hoursSinceChange = (Date.now() - changeTime.getTime()) / (1000 * 60 * 60)
-        
-        if (hoursSinceChange < 72) { // Node changes in last 3 days
-          alerts.push({
-            type: 'node_change',
-            podName: history.podName,
-            message: `Moved from ${recentChange.nodeName} to ${history.currentNode}`,
-            timestamp: changeTime,
-            severity: 'low'
-          })
+        if (recentChange.startTime) {
+          const changeTime = new Date(recentChange.startTime)
+          // Check if the date is valid
+          if (!isNaN(changeTime.getTime())) {
+            const hoursSinceChange = (Date.now() - changeTime.getTime()) / (1000 * 60 * 60)
+            
+            if (hoursSinceChange < 72) { // Node changes in last 3 days
+              alerts.push({
+                type: 'node_change',
+                podName: history.podName,
+                message: `Moved from ${recentChange.nodeName} to ${history.currentNode}`,
+                timestamp: changeTime,
+                severity: 'low'
+              })
+            }
+          }
         }
       }
     })
@@ -331,9 +338,8 @@ export function PodHistoryOverview({
                         <span className="text-sm font-medium">{alert.podName}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(alert.timestamp, { 
-                          addSuffix: true,
-                          locale: zhCN 
+                        {safeFormatDistanceToNow(alert.timestamp, { 
+                          addSuffix: true
                         })}
                       </span>
                     </div>

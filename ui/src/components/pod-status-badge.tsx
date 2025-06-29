@@ -19,8 +19,7 @@ import {
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { usePodHistory, type PodNodeHistory } from '@/lib/api'
-import { formatDistanceToNow } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
+import { safeFormatDistanceToNow } from '@/lib/date-utils'
 
 interface PodStatusBadgeProps {
   pod: any
@@ -147,9 +146,8 @@ export function PodStatusBadge({
                 </div>
                 <div className="text-right">
                   <div className="text-sm text-muted-foreground">
-                    {formatDistanceToNow(new Date(entry.startTime), { 
-                      addSuffix: true,
-                      locale: zhCN 
+                    {safeFormatDistanceToNow(entry.startTime, { 
+                      addSuffix: true
                     })}
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -185,9 +183,8 @@ export function PodStatusBadge({
                   </Badge>
                   {entry.lastRestartTime && (
                     <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(entry.lastRestartTime), { 
-                        addSuffix: true,
-                        locale: zhCN 
+                      {safeFormatDistanceToNow(entry.lastRestartTime, { 
+                        addSuffix: true
                       })}
                     </span>
                   )}
@@ -385,9 +382,8 @@ export function PodStatusBadge({
                                 <div className="flex items-center justify-between">
                                   <span className="font-medium text-xs">{event.reason}</span>
                                   <span className="text-xs text-muted-foreground">
-                                    {formatDistanceToNow(new Date(event.creationTimestamp), { 
-                                      addSuffix: true,
-                                      locale: zhCN 
+                                    {safeFormatDistanceToNow(event.creationTimestamp, { 
+                                      addSuffix: true
                                     })}
                                   </span>
                                 </div>
