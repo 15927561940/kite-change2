@@ -137,8 +137,41 @@ export function ResourceTable<T>({
     [setSelectedNamespace, pagination.pageSize]
   )
 
+  // Get selection state for icons
+  const getSelectionState = useCallback(() => {
+    const filteredRows = table?.getFilteredRowModel().rows || []
+    const selectedRowsCount = Object.keys(rowSelection).length
+    const filteredRowsCount = filteredRows.length
+    
+    if (selectedRowsCount === 0) {
+      return 'none'
+    } else if (selectedRowsCount === filteredRowsCount) {
+      return 'all'
+    } else {
+      return 'some'
+    }
+  }, [rowSelection])
+
+  // Handle toggle selection (select all if none selected, deselect all if any selected)
+  const handleToggleSelection = useCallback(() => {
+    const filteredRows = table?.getFilteredRowModel().rows || []
+    const selectedRowsCount = Object.keys(rowSelection).length
+    
+    if (selectedRowsCount === 0) {
+      // Select all filtered rows
+      const newSelection: RowSelectionState = {}
+      filteredRows.forEach((row: any) => {
+        newSelection[row.id] = true
+      })
+      setRowSelection(newSelection)
+    } else {
+      // Deselect all
+      setRowSelection({})
+    }
+  }, [rowSelection])
+
   // Add namespace column when showing all namespaces and selection column when enabled
-  const enhancedColumns = useMemo(() => {
+  const enhancedColumns: ColumnDef<T, any>[] = useMemo(() => {
     let newColumns = [...columns]
 
     // Add selection column if enabled
@@ -216,13 +249,13 @@ export function ResourceTable<T>({
       }
     }
     return newColumns
-  }, [columns, clusterScope, selectedNamespace, enableRowSelection, getSelectionState, handleToggleSelection])
+  }, [columns, clusterScope, selectedNamespace, enableRowSelection])
 
   // Memoize data to prevent unnecessary re-renders
   const memoizedData = useMemo(() => (data || []) as T[], [data])
 
   // Create table instance using TanStack Table
-  const table = useReactTable<T>({
+  const table = useReactTable({
     data: memoizedData,
     columns: enhancedColumns,
     getCoreRowModel: getCoreRowModel(),
@@ -299,39 +332,6 @@ export function ResourceTable<T>({
   const handleDeselectAll = useCallback(() => {
     setRowSelection({})
   }, [])
-
-  // Handle toggle selection (select all if none selected, deselect all if any selected)
-  const handleToggleSelection = useCallback(() => {
-    const filteredRows = table.getFilteredRowModel().rows
-    const selectedRowsCount = Object.keys(rowSelection).length
-    
-    if (selectedRowsCount === 0) {
-      // Select all filtered rows
-      const newSelection: RowSelectionState = {}
-      filteredRows.forEach(row => {
-        newSelection[row.id] = true
-      })
-      setRowSelection(newSelection)
-    } else {
-      // Deselect all
-      setRowSelection({})
-    }
-  }, [table, rowSelection])
-
-  // Get selection state for icons
-  const getSelectionState = useCallback(() => {
-    const filteredRows = table.getFilteredRowModel().rows
-    const selectedRowsCount = Object.keys(rowSelection).length
-    const filteredRowsCount = filteredRows.length
-    
-    if (selectedRowsCount === 0) {
-      return 'none'
-    } else if (selectedRowsCount === filteredRowsCount) {
-      return 'all'
-    } else {
-      return 'some'
-    }
-  }, [table, rowSelection])
 
   // Render empty state based on condition
   const renderEmptyState = () => {
@@ -425,9 +425,9 @@ export function ResourceTable<T>({
       )
     }
 
-    return rows.map((row) => (
+    return rows.map((row: any) => (
       <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
-        {row.getVisibleCells().map((cell) => (
+        {row.getVisibleCells().map((cell: any) => (
           <TableCell key={cell.id} className="align-middle text-center">
             {cell.column.columnDef.cell
               ? flexRender(cell.column.columnDef.cell, cell.getContext())
@@ -467,13 +467,13 @@ export function ResourceTable<T>({
             {/* Column Filters */}
             {table
               .getAllColumns()
-              .filter((column) => {
+              .filter((column: any) => {
                 const columnDef = column.columnDef as ColumnDef<T> & {
                   enableColumnFilter?: boolean
                 }
                 return columnDef.enableColumnFilter && column.getCanFilter()
               })
-              .map((column) => {
+              .map((column: any) => {
                 const columnDef = column.columnDef as ColumnDef<T> & {
                   enableColumnFilter?: boolean
                 }
@@ -649,9 +649,9 @@ export function ResourceTable<T>({
             <>
               <Table>
                 <TableHeader className="bg-muted sticky top-0 z-10">
-                  {table.getHeaderGroups().map((headerGroup) => (
+                  {table.getHeaderGroups().map((headerGroup: any) => (
                     <TableRow key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
+                      {headerGroup.headers.map((header: any) => (
                         <TableHead key={header.id} className="text-center">
                           {header.isPlaceholder ? null : header.column.getCanSort() ? (
                             <Button
