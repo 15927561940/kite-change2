@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button'
 import { DeploymentStatusIcon } from '@/components/deployment-status-icon'
 import { DeploymentCreateDialog } from '@/components/editors/deployment-create-dialog'
 import { DeploymentRestartDialog } from '@/components/deployment-restart-dialog'
+import { DeploymentScaleDialog } from '@/components/deployment-scale-dialog'
 import { ResourceTable } from '@/components/resource-table'
-import { restartDeploymentsBatch, scaleRestartDeploymentsBatch } from '@/lib/api'
+import { restartDeploymentsBatch, scaleRestartDeploymentsBatch, scaleDeployment } from '@/lib/api'
 import { 
   Tooltip,
   TooltipContent,
@@ -25,6 +26,8 @@ export function DeploymentListPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isRestartDialogOpen, setIsRestartDialogOpen] = useState(false)
   const [deploymentsToRestart, setDeploymentsToRestart] = useState<Deployment[]>([])
+  const [isScaleDialogOpen, setIsScaleDialogOpen] = useState(false)
+  const [deploymentsToScale, setDeploymentsToScale] = useState<Deployment[]>([])
 
   // Define column helper outside of any hooks
   const columnHelper = createColumnHelper<Deployment>()
@@ -45,6 +48,41 @@ export function DeploymentListPage() {
             </Link>
           </div>
         ),
+      }),
+      columnHelper.accessor((row) => row.spec?.replicas, {
+        id: 'replicas',
+        header: 'Replicas',
+        cell: ({ row }) => {
+          const deployment = row.original
+          const currentReplicas = deployment.spec?.replicas || 0
+          
+          const handleScaleDeployment = () => {
+            setDeploymentsToScale([deployment])
+            setIsScaleDialogOpen(true)
+          }
+          
+          return (
+            <div className="flex items-center gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleScaleDeployment}
+                      className="h-7 px-2 hover:bg-blue-100 hover:text-blue-700 text-sm font-mono"
+                    >
+                      {currentReplicas}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="text-xs font-medium text-slate-700">调整副本数</div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )
+        },
       }),
       columnHelper.accessor((row) => row.status, {
         id: 'ready',
@@ -146,6 +184,11 @@ export function DeploymentListPage() {
       console.log('Setting deployments to restart:', selectedDeployments.map(d => d.metadata?.name))
       setDeploymentsToRestart(selectedDeployments)
       setIsRestartDialogOpen(true)
+    } else if (action === 'scale') {
+      // Show scale dialog
+      console.log('Setting deployments to scale:', selectedDeployments.map(d => d.metadata?.name))
+      setDeploymentsToScale(selectedDeployments)
+      setIsScaleDialogOpen(true)
     }
   }, [])
 
@@ -183,9 +226,35 @@ export function DeploymentListPage() {
     }
   }, [deploymentsToRestart])
 
+  // Handle scale confirmation
+  const handleScaleConfirm = useCallback(async (replicas: number) => {
+    try {
+      console.log(`Scaling ${deploymentsToScale.length} deployments to ${replicas} replicas`)
+      
+      // Scale each deployment sequentially to avoid overwhelming the API
+      for (const deployment of deploymentsToScale) {
+        if (deployment.metadata?.namespace && deployment.metadata?.name) {
+          await scaleDeployment(
+            deployment.metadata.namespace,
+            deployment.metadata.name,
+            replicas
+          )
+          console.log(`Scaled ${deployment.metadata.name} to ${replicas} replicas`)
+        }
+      }
+      
+      // Reload the page to show updated status
+      window.location.reload()
+    } catch (error) {
+      console.error('Failed to scale deployments:', error)
+      throw error
+    }
+  }, [deploymentsToScale])
+
   // Define batch actions
   const batchActions = useMemo(() => [
-    { label: '批量滚动重启', action: 'restart', variant: 'destructive' as const }
+    { label: '批量滚动重启', action: 'restart', variant: 'destructive' as const },
+    { label: '批量调整副本数', action: 'scale', variant: 'default' as const }
   ], [])
 
   return (
@@ -212,6 +281,13 @@ export function DeploymentListPage() {
         onOpenChange={setIsRestartDialogOpen}
         deployments={deploymentsToRestart}
         onConfirm={handleRestartConfirm}
+      />
+
+      <DeploymentScaleDialog
+        open={isScaleDialogOpen}
+        onOpenChange={setIsScaleDialogOpen}
+        deployments={deploymentsToScale}
+        onConfirm={handleScaleConfirm}
       />
     </>
   )
