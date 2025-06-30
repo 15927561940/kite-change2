@@ -137,38 +137,38 @@ export function ResourceTable<T>({
     [setSelectedNamespace, pagination.pageSize]
   )
 
-  // Get selection state for icons
-  const getSelectionState = useCallback(() => {
-    const filteredRows = table?.getFilteredRowModel().rows || []
-    const selectedRowsCount = Object.keys(rowSelection).length
-    const filteredRowsCount = filteredRows.length
-    
-    if (selectedRowsCount === 0) {
-      return 'none'
-    } else if (selectedRowsCount === filteredRowsCount) {
-      return 'all'
-    } else {
-      return 'some'
-    }
-  }, [rowSelection])
-
   // Handle toggle selection (select all if none selected, deselect all if any selected)
   const handleToggleSelection = useCallback(() => {
-    const filteredRows = table?.getFilteredRowModel().rows || []
+    const allRows = (data as T[]) || []
     const selectedRowsCount = Object.keys(rowSelection).length
     
     if (selectedRowsCount === 0) {
-      // Select all filtered rows
+      // Select all rows
       const newSelection: RowSelectionState = {}
-      filteredRows.forEach((row: any) => {
-        newSelection[row.id] = true
+      allRows.forEach((_: T, index: number) => {
+        newSelection[index.toString()] = true
       })
       setRowSelection(newSelection)
     } else {
       // Deselect all
       setRowSelection({})
     }
-  }, [rowSelection])
+  }, [data, rowSelection])
+
+  // Get selection state for icons
+  const getSelectionState = useCallback(() => {
+    const allRows = (data as T[]) || []
+    const selectedRowsCount = Object.keys(rowSelection).length
+    const totalRowsCount = allRows.length
+    
+    if (selectedRowsCount === 0) {
+      return 'none'
+    } else if (selectedRowsCount === totalRowsCount) {
+      return 'all'
+    } else {
+      return 'some'
+    }
+  }, [data, rowSelection])
 
   // Add namespace column when showing all namespaces and selection column when enabled
   const enhancedColumns: ColumnDef<T, any>[] = useMemo(() => {
@@ -176,7 +176,7 @@ export function ResourceTable<T>({
 
     // Add selection column if enabled
     if (enableRowSelection) {
-      const selectionColumn = {
+      const selectionColumn: ColumnDef<T, any> = {
         id: 'select',
         header: () => (
           <Button
@@ -194,7 +194,7 @@ export function ResourceTable<T>({
             )}
           </Button>
         ),
-        cell: ({ row }: { row: { getIsSelected: () => boolean; toggleSelected: (value: boolean) => void } }) => (
+        cell: ({ row }) => (
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
@@ -227,7 +227,7 @@ export function ResourceTable<T>({
 
       // Only add namespace column if it doesn't already exist
       if (!hasNamespaceColumn) {
-        const namespaceColumn = {
+        const namespaceColumn: ColumnDef<T, any> = {
           id: 'namespace',
           header: 'Namespace',
           accessorFn: (row: T) => {
@@ -236,9 +236,9 @@ export function ResourceTable<T>({
               ?.metadata
             return metadata?.namespace || '-'
           },
-          cell: ({ getValue }: { getValue: () => string }) => (
-            <Badge variant="outline" className="ml-2 ">
-              {getValue()}
+          cell: ({ getValue }) => (
+            <Badge variant="outline" className="ml-2">
+              {getValue() as string}
             </Badge>
           ),
         }
@@ -249,13 +249,13 @@ export function ResourceTable<T>({
       }
     }
     return newColumns
-  }, [columns, clusterScope, selectedNamespace, enableRowSelection])
+  }, [columns, clusterScope, selectedNamespace, enableRowSelection, handleToggleSelection, getSelectionState])
 
   // Memoize data to prevent unnecessary re-renders
   const memoizedData = useMemo(() => (data || []) as T[], [data])
 
   // Create table instance using TanStack Table
-  const table = useReactTable({
+  const table = useReactTable<T>({
     data: memoizedData,
     columns: enhancedColumns,
     getCoreRowModel: getCoreRowModel(),
@@ -326,12 +326,6 @@ export function ResourceTable<T>({
       setRowSelection({})
     }
   }, [onBatchAction, selectedRows])
-
-
-  // Handle deselect all
-  const handleDeselectAll = useCallback(() => {
-    setRowSelection({})
-  }, [])
 
   // Render empty state based on condition
   const renderEmptyState = () => {
@@ -425,9 +419,9 @@ export function ResourceTable<T>({
       )
     }
 
-    return rows.map((row: any) => (
+    return rows.map((row) => (
       <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
-        {row.getVisibleCells().map((cell: any) => (
+        {row.getVisibleCells().map((cell) => (
           <TableCell key={cell.id} className="align-middle text-center">
             {cell.column.columnDef.cell
               ? flexRender(cell.column.columnDef.cell, cell.getContext())
@@ -467,13 +461,13 @@ export function ResourceTable<T>({
             {/* Column Filters */}
             {table
               .getAllColumns()
-              .filter((column: any) => {
+              .filter((column) => {
                 const columnDef = column.columnDef as ColumnDef<T> & {
                   enableColumnFilter?: boolean
                 }
                 return columnDef.enableColumnFilter && column.getCanFilter()
               })
-              .map((column: any) => {
+              .map((column) => {
                 const columnDef = column.columnDef as ColumnDef<T> & {
                   enableColumnFilter?: boolean
                 }
@@ -603,16 +597,6 @@ export function ResourceTable<T>({
                 )}
                 全选当前页{selectedRows.length > 0 ? ` (${selectedRows.length})` : ''}
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDeselectAll}
-                className="h-8"
-                disabled={selectedRows.length === 0}
-              >
-                <Square className="w-4 h-4 mr-1" />
-                清除选择
-              </Button>
             </div>
             
             {selectedRows.length > 0 && (
@@ -649,9 +633,9 @@ export function ResourceTable<T>({
             <>
               <Table>
                 <TableHeader className="bg-muted sticky top-0 z-10">
-                  {table.getHeaderGroups().map((headerGroup: any) => (
+                  {table.getHeaderGroups().map((headerGroup) => (
                     <TableRow key={headerGroup.id}>
-                      {headerGroup.headers.map((header: any) => (
+                      {headerGroup.headers.map((header) => (
                         <TableHead key={header.id} className="text-center">
                           {header.isPlaceholder ? null : header.column.getCanSort() ? (
                             <Button
