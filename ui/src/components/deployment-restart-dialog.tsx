@@ -49,7 +49,7 @@ export function DeploymentRestartDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-red-500" />
@@ -102,7 +102,7 @@ export function DeploymentRestartDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+        <DialogFooter className="flex-col gap-3 sm:flex-row sm:justify-end sm:flex-wrap">
           {hasSingleReplica ? (
             <>
               <Button
@@ -122,16 +122,16 @@ export function DeploymentRestartDialog({
               <Button
                 onClick={() => handleConfirm('scale-restart', { finalReplicas: 1 })}
                 disabled={isLoading}
-                className="bg-orange-600 hover:bg-orange-700"
+                className="bg-orange-600 hover:bg-orange-700 whitespace-nowrap"
               >
-                {isLoading ? '处理中...' : '扩容到3副本后重启，然后缩回1副本'}
+                {isLoading ? '处理中...' : '扩容重启后缩回1副本'}
               </Button>
               <Button
                 onClick={() => handleConfirm('scale-restart', { finalReplicas: 3 })}
                 disabled={isLoading}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap"
               >
-                {isLoading ? '处理中...' : '扩容到3副本后重启，保持3副本'}
+                {isLoading ? '处理中...' : '扩容重启保持3副本'}
               </Button>
             </>
           ) : (

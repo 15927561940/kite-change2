@@ -331,30 +331,21 @@ export function ResourceTable<T>({
 
   // Handle batch action
   const handleBatchAction = useCallback((action: string) => {
-    console.log('handleBatchAction called:', action, 'selectedRowsCount:', selectedRowsCount, 'selectedRows:', selectedRows)
-    
     // If selectedRows is empty but selectedRowsCount > 0, manually construct selectedRows
     let actualSelectedRows = selectedRows
     if (selectedRowsCount > 0 && selectedRows.length === 0) {
-      console.log('Manually constructing selectedRows from rowSelection and pagination')
       const allData = (data as T[]) || []
       const selectedIndices = Object.keys(rowSelection).map(key => parseInt(key))
       actualSelectedRows = selectedIndices.map(index => allData[index]).filter(Boolean)
-      console.log('Manually constructed selectedRows:', actualSelectedRows.length, 'items')
     }
     
     if (onBatchAction && selectedRowsCount > 0 && actualSelectedRows.length > 0) {
-      console.log('Calling onBatchAction with:', actualSelectedRows.length, 'items')
+      console.log(`Executing batch ${action} for ${actualSelectedRows.length} items`)
       onBatchAction(actualSelectedRows, action)
       // Clear selection after action
       setRowSelection({})
     } else {
-      console.warn('Cannot execute batch action:', {
-        hasOnBatchAction: !!onBatchAction,
-        selectedRowsCount,
-        selectedRowsLength: selectedRows.length,
-        actualSelectedRowsLength: actualSelectedRows.length
-      })
+      console.warn('Cannot execute batch action - insufficient selection or missing handler')
     }
   }, [onBatchAction, selectedRows, selectedRowsCount, rowSelection, data])
 
@@ -600,10 +591,7 @@ export function ResourceTable<T>({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  console.log('🔥 全选按钮 clicked! selectedRowsCount:', selectedRowsCount)
-                  handleToggleSelection()
-                }}
+                onClick={handleToggleSelection}
                 className="h-8"
               >
                 {getSelectionState() === 'all' ? (
@@ -623,11 +611,7 @@ export function ResourceTable<T>({
                     key={action.action}
                     variant={action.variant || 'default'}
                     size="sm"
-                    onClick={() => {
-                      console.log('🔥 Button clicked!', action.action, 'selectedRowsCount:', selectedRowsCount)
-                      alert(`Button clicked: ${action.label}, selectedRowsCount: ${selectedRowsCount}`)
-                      handleBatchAction(action.action)
-                    }}
+                    onClick={() => handleBatchAction(action.action)}
                     disabled={selectedRowsCount === 0}
                     className={`h-8 ${
                       action.action === 'restart' 
