@@ -7,6 +7,7 @@ import { IconServer } from '@tabler/icons-react'
 import { formatDate } from '@/lib/utils'
 import { PodStatusBadge } from '@/components/pod-status-badge'
 import { ResourceTable } from '@/components/resource-table'
+import { PodRestartDialog } from '@/components/pod-restart-dialog'
 import { restartPod, restartPodsBatch, useResources } from '@/lib/api'
 import { 
   Tooltip,
@@ -25,6 +26,10 @@ export function PodListPage() {
     const stored = localStorage.getItem('selectedNamespace')
     return stored || 'default'
   })
+  
+  // State for restart dialog
+  const [isRestartDialogOpen, setIsRestartDialogOpen] = useState(false)
+  const [podsToRestart, setPodsToRestart] = useState<Pod[]>([])
   
   // Get refetch function from useResources hook
   const { refetch } = useResources('pods', selectedNamespace, {
@@ -158,22 +163,31 @@ export function PodListPage() {
   const handleBatchAction = useCallback(async (selectedPods: Pod[], action: string) => {
     console.log('Pod handleBatchAction called:', action, 'selectedPods:', selectedPods.length)
     if (action === 'restart') {
-      try {
-        const podList = selectedPods.map(pod => ({
-          namespace: pod.metadata!.namespace!,
-          name: pod.metadata!.name!
-        }))
-        
-        console.log('Calling restartPodsBatch with:', podList)
-        await restartPodsBatch(podList)
-        console.log(`Batch restart triggered for ${podList.length} pods`)
-        // Refresh the data using React Query instead of page reload
-        refetch()
-      } catch (error) {
-        console.error('Failed to restart pods batch:', error)
-      }
+      // Show confirmation dialog instead of direct restart
+      console.log('Setting pods to restart:', selectedPods.map(p => p.metadata?.name))
+      setPodsToRestart(selectedPods)
+      setIsRestartDialogOpen(true)
     }
-  }, [refetch])
+  }, [])
+
+  // Handle restart confirmation
+  const handleRestartConfirm = useCallback(async () => {
+    try {
+      const podList = podsToRestart.map(pod => ({
+        namespace: pod.metadata!.namespace!,
+        name: pod.metadata!.name!
+      }))
+      
+      console.log('Calling restartPodsBatch with:', podList)
+      await restartPodsBatch(podList)
+      console.log(`Batch restart triggered for ${podList.length} pods`)
+      // Refresh the data using React Query instead of page reload
+      refetch()
+    } catch (error) {
+      console.error('Failed to restart pods batch:', error)
+      throw error
+    }
+  }, [podsToRestart, refetch])
 
   // Define batch actions
   const batchActions = useMemo(() => [
@@ -181,14 +195,23 @@ export function PodListPage() {
   ], [])
 
   return (
-    <ResourceTable<Pod>
-      resourceName="Pods"
-      columns={columns}
-      clusterScope={false}
-      searchQueryFilter={podSearchFilter}
-      enableRowSelection={true}
-      onBatchAction={handleBatchAction}
-      batchActions={batchActions}
-    />
+    <>
+      <ResourceTable<Pod>
+        resourceName="Pods"
+        columns={columns}
+        clusterScope={false}
+        searchQueryFilter={podSearchFilter}
+        enableRowSelection={true}
+        onBatchAction={handleBatchAction}
+        batchActions={batchActions}
+      />
+
+      <PodRestartDialog
+        open={isRestartDialogOpen}
+        onOpenChange={setIsRestartDialogOpen}
+        pods={podsToRestart}
+        onConfirm={handleRestartConfirm}
+      />
+    </>
   )
 }
