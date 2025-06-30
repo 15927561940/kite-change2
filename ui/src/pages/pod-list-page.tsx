@@ -53,6 +53,7 @@ export function PodListPage() {
       columnHelper.accessor('status.phase', {
         header: 'Status',
         enableColumnFilter: true,
+        meta: { align: 'left' },
         cell: ({ row }) => {
           const pod = row.original
           const handleViewLogs = () => {

@@ -443,13 +443,19 @@ export function ResourceTable<T>({
 
     return rows.map((row) => (
       <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
-        {row.getVisibleCells().map((cell) => (
-          <TableCell key={cell.id} className="align-middle text-center">
-            {cell.column.columnDef.cell
-              ? flexRender(cell.column.columnDef.cell, cell.getContext())
-              : String(cell.getValue() || '-')}
-          </TableCell>
-        ))}
+        {row.getVisibleCells().map((cell) => {
+          // 获取列的对齐方式
+          const align = (cell.column.columnDef.meta as any)?.align || 'center'
+          const alignClass = align === 'left' ? 'text-left' : align === 'right' ? 'text-right' : 'text-center'
+          
+          return (
+            <TableCell key={cell.id} className={`align-middle ${alignClass}`}>
+              {cell.column.columnDef.cell
+                ? flexRender(cell.column.columnDef.cell, cell.getContext())
+                : String(cell.getValue() || '-')}
+            </TableCell>
+          )
+        })}
       </TableRow>
     ))
   }
@@ -661,8 +667,13 @@ export function ResourceTable<T>({
                 <TableHeader className="bg-muted sticky top-0 z-10">
                   {table.getHeaderGroups().map((headerGroup) => (
                     <TableRow key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <TableHead key={header.id} className="text-center">
+                      {headerGroup.headers.map((header) => {
+                        // 获取表头的对齐方式
+                        const align = (header.column.columnDef.meta as any)?.align || 'center'
+                        const alignClass = align === 'left' ? 'text-left' : align === 'right' ? 'text-right' : 'text-center'
+                        
+                        return (
+                        <TableHead key={header.id} className={alignClass}>
                           {header.isPlaceholder ? null : header.column.getCanSort() ? (
                             <Button
                               variant="ghost"
@@ -689,7 +700,8 @@ export function ResourceTable<T>({
                             (header.column.columnDef.header as React.ReactNode)
                           )}
                         </TableHead>
-                      ))}
+                        )
+                      })}
                     </TableRow>
                   ))}
                 </TableHeader>
