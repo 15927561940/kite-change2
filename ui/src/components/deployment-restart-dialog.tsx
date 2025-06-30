@@ -52,8 +52,15 @@ export function DeploymentRestartDialog({
   }
 
   // Initialize progress when dialog opens
-  if (open && progress.length === 0) {
+  if (open && progress.length === 0 && deployments.length > 0) {
     initializeProgress()
+  }
+
+  // Reset states when dialog closes
+  if (!open && (progress.length > 0 || isProcessing)) {
+    setProgress([])
+    setIsProcessing(false)
+    setIsLoading(false)
   }
 
   // Check if any deployment has only 1 replica
@@ -70,17 +77,32 @@ export function DeploymentRestartDialog({
   const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0
 
   const handleConfirm = async (action: 'restart' | 'scale-restart', options?: { finalReplicas?: number }) => {
+    console.log('handleConfirm called with action:', action)
     setIsLoading(true)
     setIsProcessing(true)
+    
+    // Initialize progress state immediately when starting
+    const initialProgress = deployments.map(deployment => ({
+      deployment,
+      status: 'pending' as const
+    }))
+    setProgress(initialProgress)
+    console.log('Initial progress set:', initialProgress.length, 'deployments')
+    
     try {
-      await onConfirm(action, options, setProgress)
-      // Only close dialog if all operations completed successfully
-      if (errorCount === 0) {
+      await onConfirm(action, options, (newProgress) => {
+        console.log('Progress update received:', newProgress)
+        setProgress(newProgress)
+      })
+      
+      // After completion, check if there were any errors
+      const finalErrorCount = progress.filter(p => p.status === 'error').length
+      console.log('Restart completed, error count:', finalErrorCount)
+      
+      if (finalErrorCount === 0) {
         setTimeout(() => {
-          onOpenChange(false)
-          setProgress([])
-          setIsProcessing(false)
-        }, 1500) // Allow user to see completion status
+          handleClose()
+        }, 2000) // Allow user to see completion status
       }
     } catch (error) {
       console.error('Restart failed:', error)
@@ -134,7 +156,13 @@ export function DeploymentRestartDialog({
           {/* Display deployments with status */}
           <div className="max-h-64 overflow-y-auto">
             <div className="grid grid-cols-1 gap-2">
-              {(isProcessing ? progress : deployments.map(deployment => ({ deployment, status: 'pending' as const }))).map((item) => {
+              {/* Debug info */}
+              {isProcessing && (
+                <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
+                  Debug: isProcessing={isProcessing.toString()}, progress.length={progress.length}, deployments.length={deployments.length}
+                </div>
+              )}
+              {(isProcessing && progress.length > 0 ? progress : deployments.map(deployment => ({ deployment, status: 'pending' as const }))).map((item) => {
                 const deployment = 'deployment' in item ? item.deployment : item
                 const status = 'status' in item ? item.status : 'pending'
                 const error = 'error' in item ? item.error : undefined
