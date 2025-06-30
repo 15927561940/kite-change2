@@ -564,8 +564,8 @@ export function ResourceTable<T>({
       {enableRowSelection && data && (data as T[]).length > 0 && (
         <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
           <div className="flex items-center gap-4">
-            {/* Batch Actions First */}
-            {selectedRows.length > 0 && (
+            {/* Batch Actions - Always show if batchActions are provided */}
+            {batchActions.length > 0 && (
               <div className="flex items-center gap-2">
                 {batchActions.map((action) => (
                   <Button
@@ -573,8 +573,11 @@ export function ResourceTable<T>({
                     variant={action.variant || 'default'}
                     size="sm"
                     onClick={() => handleBatchAction(action.action)}
+                    disabled={selectedRows.length === 0}
                     className={`h-8 ${
-                      action.action === 'restart' ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200' : ''
+                      action.action === 'restart' 
+                        ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200 disabled:bg-red-25 disabled:text-red-400' 
+                        : ''
                     }`}
                   >
                     {action.label}
