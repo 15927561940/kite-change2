@@ -1,9 +1,9 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Link, useParams } from 'react-router-dom'
 
 import { CustomResource, ResourceType } from '@/types/api'
-import { useResource } from '@/lib/api'
+import { useResource, useResources } from '@/lib/api'
 import { getAge } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { CRCreateDialog } from '@/components/cr-create-dialog'
@@ -12,6 +12,17 @@ import { ResourceTable } from '@/components/resource-table'
 export function CRListPage() {
   const { crd } = useParams<{ crd: string }>()
   const { data: crdData, isLoading: isLoadingCRD } = useResource('crds', crd!)
+
+  // Get namespace from localStorage for initial state
+  const [selectedNamespace] = useState<string | undefined>(() => {
+    const stored = localStorage.getItem('selectedNamespace')
+    return stored || 'default'
+  })
+
+  // Get refetch function from useResources hook  
+  const { refetch } = useResources(crd as ResourceType, selectedNamespace, {
+    refreshInterval: 5000,
+  })
 
   // Define column helper outside of any hooks
   const columnHelper = createColumnHelper<CustomResource>()
@@ -139,8 +150,8 @@ export function CRListPage() {
           crdName={crd!}
           crdData={crdData}
           onSuccess={() => {
-            // Refresh the resource list
-            window.location.reload()
+            // Refresh the resource list using React Query instead of page reload
+            refetch()
           }}
         />
       }

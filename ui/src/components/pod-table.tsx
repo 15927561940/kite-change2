@@ -21,8 +21,9 @@ export function PodTable(props: {
   labelSelector?: string
   isLoading?: boolean
   hiddenNode?: boolean
+  onRefresh?: () => void
 }) {
-  const { pods, isLoading } = props
+  const { pods, isLoading, onRefresh } = props
   const navigate = useNavigate()
 
   const namespace = pods?.[0]?.metadata?.namespace || ''
@@ -104,8 +105,10 @@ export function PodTable(props: {
               await restartPod(pod.metadata.namespace, pod.metadata.name)
               // Optionally show success notification
               console.log(`Pod ${pod.metadata.name} restart triggered successfully`)
-              // Reload the page to show updated status
-              window.location.reload()
+              // Refresh data using callback instead of page reload
+              if (onRefresh) {
+                onRefresh()
+              }
             } catch (error) {
               console.error('Failed to restart pod:', error)
               // Optionally show error notification

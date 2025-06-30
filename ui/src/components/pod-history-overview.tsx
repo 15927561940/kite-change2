@@ -19,7 +19,7 @@ export function PodHistoryOverview({
   labelSelector
 }: PodHistoryOverviewProps) {
   
-  const { data: batchHistory, isLoading, error } = usePodsHistoryBatch(
+  const { data: batchHistory, isLoading, error, refetch } = usePodsHistoryBatch(
     namespace,
     {
       labelSelector,
@@ -30,7 +30,7 @@ export function PodHistoryOverview({
   )
 
   const handleRefresh = () => {
-    window.location.reload()
+    refetch()
   }
 
   // Aggregate statistics

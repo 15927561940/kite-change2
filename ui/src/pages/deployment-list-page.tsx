@@ -13,7 +13,7 @@ import { DeploymentCreateDialog } from '@/components/editors/deployment-create-d
 import { DeploymentRestartDialog } from '@/components/deployment-restart-dialog'
 import { DeploymentScaleDialog } from '@/components/deployment-scale-dialog'
 import { ResourceTable } from '@/components/resource-table'
-import { restartDeploymentsBatch, scaleRestartDeploymentsBatch, scaleDeployment } from '@/lib/api'
+import { restartDeploymentsBatch, scaleRestartDeploymentsBatch, scaleDeployment, useResources } from '@/lib/api'
 import { 
   Tooltip,
   TooltipContent,
@@ -28,6 +28,17 @@ export function DeploymentListPage() {
   const [deploymentsToRestart, setDeploymentsToRestart] = useState<Deployment[]>([])
   const [isScaleDialogOpen, setIsScaleDialogOpen] = useState(false)
   const [deploymentsToScale, setDeploymentsToScale] = useState<Deployment[]>([])
+
+  // Get namespace from localStorage for initial state
+  const [selectedNamespace] = useState<string | undefined>(() => {
+    const stored = localStorage.getItem('selectedNamespace')
+    return stored || 'default'
+  })
+
+  // Get refetch function from useResources hook
+  const { refetch } = useResources('deployments', selectedNamespace, {
+    refreshInterval: 5000,
+  })
 
   // Define column helper outside of any hooks
   const columnHelper = createColumnHelper<Deployment>()
@@ -208,13 +219,13 @@ export function DeploymentListPage() {
         console.log(`Scale-restart operation completed for ${deploymentList.length} deployments`)
       }
       
-      // Reload the page to show updated status
-      window.location.reload()
+      // Refresh the data using React Query instead of page reload
+      refetch()
     } catch (error) {
       console.error('Failed to restart deployments:', error)
       throw error
     }
-  }, [deploymentsToRestart])
+  }, [deploymentsToRestart, refetch])
 
   // Handle scale confirmation
   const handleScaleConfirm = useCallback(async (scaleRequests: Array<{ deployment: Deployment; replicas: number }>) => {
@@ -233,13 +244,13 @@ export function DeploymentListPage() {
         }
       }
       
-      // Reload the page to show updated status
-      window.location.reload()
+      // Refresh the data using React Query instead of page reload
+      refetch()
     } catch (error) {
       console.error('Failed to scale deployments:', error)
       throw error
     }
-  }, [])
+  }, [refetch])
 
   // Define batch actions
   const batchActions = useMemo(() => [
