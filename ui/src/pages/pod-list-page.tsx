@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Pod } from 'kubernetes-types/core/v1'
 import { Link, useNavigate } from 'react-router-dom'
@@ -7,7 +7,7 @@ import { IconServer } from '@tabler/icons-react'
 import { formatDate } from '@/lib/utils'
 import { PodStatusBadge } from '@/components/pod-status-badge'
 import { ResourceTable } from '@/components/resource-table'
-import { restartPod, restartPodsBatch } from '@/lib/api'
+import { restartPod, restartPodsBatch, useResources } from '@/lib/api'
 import { 
   Tooltip,
   TooltipContent,
@@ -19,6 +19,17 @@ export function PodListPage() {
   // Define column helper outside of any hooks
   const columnHelper = createColumnHelper<Pod>()
   const navigate = useNavigate()
+  
+  // Get namespace from localStorage for initial state
+  const [selectedNamespace, setSelectedNamespace] = useState<string | undefined>(() => {
+    const stored = localStorage.getItem('selectedNamespace')
+    return stored || 'default'
+  })
+  
+  // Get refetch function from useResources hook
+  const { refetch } = useResources('pods', selectedNamespace, {
+    refreshInterval: 5000,
+  })
 
   // Define columns for the pod table - moved outside render cycle for better performance
   const columns = useMemo(
@@ -66,8 +77,8 @@ export function PodListPage() {
             try {
               await restartPod(pod.metadata.namespace, pod.metadata.name)
               console.log(`Pod ${pod.metadata.name} restart triggered successfully`)
-              // Reload the page to show updated status
-              window.location.reload()
+              // Refresh the data using React Query instead of page reload
+              refetch()
             } catch (error) {
               console.error('Failed to restart pod:', error)
             }
@@ -131,7 +142,7 @@ export function PodListPage() {
         },
       }),
     ],
-    [columnHelper]
+    [columnHelper, navigate, refetch]
   )
 
   // Custom filter for pod search
@@ -156,13 +167,13 @@ export function PodListPage() {
         console.log('Calling restartPodsBatch with:', podList)
         await restartPodsBatch(podList)
         console.log(`Batch restart triggered for ${podList.length} pods`)
-        // Reload the page to show updated status
-        window.location.reload()
+        // Refresh the data using React Query instead of page reload
+        refetch()
       } catch (error) {
         console.error('Failed to restart pods batch:', error)
       }
     }
-  }, [])
+  }, [refetch])
 
   // Define batch actions
   const batchActions = useMemo(() => [
