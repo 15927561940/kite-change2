@@ -10,10 +10,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DeploymentStatusIcon } from '@/components/deployment-status-icon'
 import { DeploymentCreateDialog } from '@/components/editors/deployment-create-dialog'
-import { DeploymentRestartDialog } from '@/components/deployment-restart-dialog'
+import { DeploymentRestartDialog, DeploymentRestartProgress } from '@/components/deployment-restart-dialog'
 import { DeploymentScaleDialog } from '@/components/deployment-scale-dialog'
 import { ResourceTable } from '@/components/resource-table'
-import { restartDeploymentsBatch, scaleRestartDeploymentsBatch, scaleDeployment, useResources } from '@/lib/api'
+import { scaleRestartDeploymentsBatch, scaleDeployment, useResources, restartDeployment } from '@/lib/api'
 import { 
   Tooltip,
   TooltipContent,
@@ -196,20 +196,66 @@ export function DeploymentListPage() {
   // Handle restart confirmation
   const handleRestartConfirm = useCallback(async (
     action: 'restart' | 'scale-restart',
-    options?: { finalReplicas?: number }
+    options?: { finalReplicas?: number },
+    onProgress?: (progress: DeploymentRestartProgress[]) => void
   ) => {
     try {
       if (action === 'restart') {
-        // Normal restart
+        // Normal restart - process one by one for progress tracking
         const deploymentList = deploymentsToRestart.map(deployment => ({
           namespace: deployment.metadata!.namespace!,
-          name: deployment.metadata!.name!
+          name: deployment.metadata!.name!,
+          deployment
         }))
         
-        await restartDeploymentsBatch(deploymentList)
-        console.log(`Batch rolling restart triggered for ${deploymentList.length} deployments`)
+        // Initialize progress
+        let progress: DeploymentRestartProgress[] = deploymentList.map(({ deployment }) => ({
+          deployment,
+          status: 'pending'
+        }))
+        
+        if (onProgress) {
+          onProgress([...progress])
+        }
+        
+        // Process each deployment sequentially
+        for (let i = 0; i < deploymentList.length; i++) {
+          const { namespace, name, deployment } = deploymentList[i]
+          
+          try {
+            // Update to processing
+            progress[i] = { deployment, status: 'processing' }
+            if (onProgress) {
+              onProgress([...progress])
+            }
+            
+            // Restart the deployment
+            await restartDeployment(namespace, name)
+            
+            // Update to completed
+            progress[i] = { deployment, status: 'completed' }
+            if (onProgress) {
+              onProgress([...progress])
+            }
+            
+            console.log(`Deployment ${name} restart triggered successfully`)
+          } catch (error) {
+            // Update to error
+            progress[i] = { 
+              deployment, 
+              status: 'error', 
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }
+            if (onProgress) {
+              onProgress([...progress])
+            }
+            console.error(`Failed to restart deployment ${name}:`, error)
+          }
+        }
+        
+        console.log(`Individual restart operation completed for ${deploymentList.length} deployments`)
       } else if (action === 'scale-restart') {
-        // Use the new scale-restart batch API
+        // Use the new scale-restart batch API (no progress tracking for batch operations)
         const deploymentList = deploymentsToRestart.map(deployment => ({
           namespace: deployment.metadata!.namespace!,
           name: deployment.metadata!.name!
