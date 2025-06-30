@@ -49,12 +49,14 @@ export function DeploymentListPage() {
           </div>
         ),
       }),
-      columnHelper.accessor((row) => row.spec?.replicas, {
-        id: 'replicas',
-        header: 'Replicas',
+      columnHelper.accessor((row) => row.status, {
+        id: 'ready',
+        header: 'Ready',
         cell: ({ row }) => {
+          const status = row.original.status
+          const ready = status?.readyReplicas || 0
+          const desired = status?.replicas || 0
           const deployment = row.original
-          const currentReplicas = deployment.spec?.replicas || 0
           
           const handleScaleDeployment = () => {
             setDeploymentsToScale([deployment])
@@ -63,6 +65,7 @@ export function DeploymentListPage() {
           
           return (
             <div className="flex items-center gap-2">
+              {/* Scale Button */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -70,9 +73,9 @@ export function DeploymentListPage() {
                       variant="ghost"
                       size="sm"
                       onClick={handleScaleDeployment}
-                      className="h-7 px-2 hover:bg-blue-100 hover:text-blue-700 text-sm font-mono"
+                      className="h-7 px-2 hover:bg-blue-100 hover:text-blue-700 text-xs font-mono"
                     >
-                      {currentReplicas}
+                      {deployment.spec?.replicas || 0}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -80,20 +83,11 @@ export function DeploymentListPage() {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            </div>
-          )
-        },
-      }),
-      columnHelper.accessor((row) => row.status, {
-        id: 'ready',
-        header: 'Ready',
-        cell: ({ row }) => {
-          const status = row.original.status
-          const ready = status?.readyReplicas || 0
-          const desired = status?.replicas || 0
-          return (
-            <div>
-              {ready} / {desired}
+              
+              {/* Ready Status */}
+              <div>
+                {ready} / {desired}
+              </div>
             </div>
           )
         },
@@ -227,12 +221,12 @@ export function DeploymentListPage() {
   }, [deploymentsToRestart])
 
   // Handle scale confirmation
-  const handleScaleConfirm = useCallback(async (replicas: number) => {
+  const handleScaleConfirm = useCallback(async (scaleRequests: Array<{ deployment: Deployment; replicas: number }>) => {
     try {
-      console.log(`Scaling ${deploymentsToScale.length} deployments to ${replicas} replicas`)
+      console.log(`Scaling ${scaleRequests.length} deployments with individual replica counts`)
       
       // Scale each deployment sequentially to avoid overwhelming the API
-      for (const deployment of deploymentsToScale) {
+      for (const { deployment, replicas } of scaleRequests) {
         if (deployment.metadata?.namespace && deployment.metadata?.name) {
           await scaleDeployment(
             deployment.metadata.namespace,
@@ -249,7 +243,7 @@ export function DeploymentListPage() {
       console.error('Failed to scale deployments:', error)
       throw error
     }
-  }, [deploymentsToScale])
+  }, [])
 
   // Define batch actions
   const batchActions = useMemo(() => [
