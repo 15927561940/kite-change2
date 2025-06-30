@@ -77,7 +77,6 @@ export function DeploymentRestartDialog({
   const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0
 
   const handleConfirm = async (action: 'restart' | 'scale-restart', options?: { finalReplicas?: number }) => {
-    console.log('handleConfirm called with action:', action)
     setIsLoading(true)
     setIsProcessing(true)
     
@@ -87,17 +86,14 @@ export function DeploymentRestartDialog({
       status: 'pending' as const
     }))
     setProgress(initialProgress)
-    console.log('Initial progress set:', initialProgress.length, 'deployments')
     
     try {
       await onConfirm(action, options, (newProgress) => {
-        console.log('Progress update received:', newProgress)
         setProgress(newProgress)
       })
       
       // After completion, check if there were any errors
       const finalErrorCount = progress.filter(p => p.status === 'error').length
-      console.log('Restart completed, error count:', finalErrorCount)
       
       if (finalErrorCount === 0) {
         setTimeout(() => {
@@ -156,12 +152,6 @@ export function DeploymentRestartDialog({
           {/* Display deployments with status */}
           <div className="max-h-64 overflow-y-auto">
             <div className="grid grid-cols-1 gap-2">
-              {/* Debug info */}
-              {isProcessing && (
-                <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
-                  Debug: isProcessing={isProcessing.toString()}, progress.length={progress.length}, deployments.length={deployments.length}
-                </div>
-              )}
               {(isProcessing && progress.length > 0 ? progress : deployments.map(deployment => ({ deployment, status: 'pending' as const }))).map((item) => {
                 const deployment = 'deployment' in item ? item.deployment : item
                 const status = 'status' in item ? item.status : 'pending'

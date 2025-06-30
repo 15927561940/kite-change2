@@ -7,8 +7,8 @@ import { IconServer } from '@tabler/icons-react'
 import { formatDate } from '@/lib/utils'
 import { PodStatusBadge } from '@/components/pod-status-badge'
 import { ResourceTable } from '@/components/resource-table'
-import { PodRestartDialog } from '@/components/pod-restart-dialog'
-import { restartPod, restartPodsBatch, useResources } from '@/lib/api'
+import { PodRestartDialog, PodRestartProgress } from '@/components/pod-restart-dialog'
+import { restartPod, useResources } from '@/lib/api'
 import { 
   Tooltip,
   TooltipContent,
@@ -170,21 +170,65 @@ export function PodListPage() {
     }
   }, [])
 
-  // Handle restart confirmation
-  const handleRestartConfirm = useCallback(async () => {
+  // Handle restart confirmation with progress tracking
+  const handleRestartConfirm = useCallback(async (
+    onProgress?: (progress: PodRestartProgress[]) => void
+  ) => {
     try {
+      // Process pods sequentially for progress tracking
       const podList = podsToRestart.map(pod => ({
         namespace: pod.metadata!.namespace!,
-        name: pod.metadata!.name!
+        name: pod.metadata!.name!,
+        pod
       }))
       
-      console.log('Calling restartPodsBatch with:', podList)
-      await restartPodsBatch(podList)
-      console.log(`Batch restart triggered for ${podList.length} pods`)
+      // Initialize progress
+      const progress: PodRestartProgress[] = podList.map(({ pod }) => ({
+        pod,
+        status: 'pending'
+      }))
+      
+      if (onProgress) {
+        onProgress([...progress])
+      }
+      
+      // Process each pod sequentially
+      for (let i = 0; i < podList.length; i++) {
+        const { namespace, name, pod } = podList[i]
+        
+        try {
+          // Update to processing
+          progress[i] = { pod, status: 'processing' }
+          if (onProgress) {
+            onProgress([...progress])
+          }
+          
+          // Restart the pod
+          await restartPod(namespace, name)
+          
+          // Update to completed
+          progress[i] = { pod, status: 'completed' }
+          if (onProgress) {
+            onProgress([...progress])
+          }
+        } catch (error) {
+          // Update to error
+          progress[i] = { 
+            pod, 
+            status: 'error', 
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }
+          if (onProgress) {
+            onProgress([...progress])
+          }
+          console.error(`Failed to restart pod ${name}:`, error)
+        }
+      }
+      
       // Refresh the data using React Query instead of page reload
       refetch()
     } catch (error) {
-      console.error('Failed to restart pods batch:', error)
+      console.error('Failed to restart pods:', error)
       throw error
     }
   }, [podsToRestart, refetch])

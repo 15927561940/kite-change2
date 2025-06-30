@@ -209,7 +209,7 @@ export function DeploymentListPage() {
         }))
         
         // Initialize progress
-        let progress: DeploymentRestartProgress[] = deploymentList.map(({ deployment }) => ({
+        const progress: DeploymentRestartProgress[] = deploymentList.map(({ deployment }) => ({
           deployment,
           status: 'pending'
         }))
@@ -237,8 +237,6 @@ export function DeploymentListPage() {
             if (onProgress) {
               onProgress([...progress])
             }
-            
-            console.log(`Deployment ${name} restart triggered successfully`)
           } catch (error) {
             // Update to error
             progress[i] = { 
@@ -252,8 +250,6 @@ export function DeploymentListPage() {
             console.error(`Failed to restart deployment ${name}:`, error)
           }
         }
-        
-        console.log(`Individual restart operation completed for ${deploymentList.length} deployments`)
       } else if (action === 'scale-restart') {
         // Use the new scale-restart batch API (no progress tracking for batch operations)
         const deploymentList = deploymentsToRestart.map(deployment => ({
@@ -262,7 +258,6 @@ export function DeploymentListPage() {
         }))
         
         await scaleRestartDeploymentsBatch(deploymentList, options?.finalReplicas)
-        console.log(`Scale-restart operation completed for ${deploymentList.length} deployments`)
       }
       
       // Refresh the data using React Query instead of page reload
