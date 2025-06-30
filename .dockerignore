@@ -1,0 +1,75 @@
+# Git相关
+.git
+.gitignore
+.gitattributes
+
+# IDE和编辑器
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+logs/
+
+# 依赖目录（会重新安装）
+node_modules/
+ui/node_modules/
+
+# 构建输出（会重新构建）
+ui/dist/
+static/
+build/
+dist/
+
+# 测试和覆盖率
+coverage/
+*.test
+*.out
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 文档和说明
+README.md
+*.md
+docs/
+
+# 配置文件
+.env*
+!.env.example
+
+# Docker相关
+Dockerfile*
+.dockerignore
+docker-compose*
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# 开发工具
+Makefile
+scripts/
+
+# 备份文件
+*.bak
+*.backup
+
+# 编译产物
+kite
+*.exe
+
+# 包管理器缓存
+.pnpm-store/
+.npm/
+.yarn/

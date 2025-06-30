@@ -1,0 +1,67 @@
+# syntax=docker/dockerfile:1.4
+# 使用BuildKit的并行构建特性
+
+# 基础镜像阶段 - 为了更好的缓存
+FROM node:20-alpine AS node-base
+RUN npm install -g pnpm@latest
+WORKDIR /app
+
+FROM golang:1.24-alpine AS go-base  
+RUN apk add --no-cache git ca-certificates
+WORKDIR /app
+
+# 前端依赖安装阶段
+FROM node-base AS frontend-deps
+COPY ui/package.json ui/pnpm-lock.yaml ./ui/
+WORKDIR /app/ui
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    --mount=type=cache,target=/root/.npm \
+    pnpm install --frozen-lockfile --prefer-offline
+
+# 前端构建阶段
+FROM frontend-deps AS frontend-builder
+COPY ui/ ./
+RUN pnpm run build
+
+# 后端依赖下载阶段
+FROM go-base AS backend-deps
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download && go mod verify
+
+# 后端构建阶段
+FROM backend-deps AS backend-builder
+# 复制源代码
+COPY *.go ./
+COPY pkg/ ./pkg/
+COPY cmd/ ./cmd/ 2>/dev/null || true
+
+# 复制前端构建结果
+COPY --from=frontend-builder /app/static ./static
+
+# 构建应用
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath \
+    -ldflags="-s -w -X main.version=$(date +%Y%m%d-%H%M%S)" \
+    -o kite .
+
+# 最终运行时镜像
+FROM gcr.io/distroless/static:nonroot
+
+WORKDIR /app
+
+# 复制二进制文件
+COPY --from=backend-builder /app/kite .
+
+# 设置非root用户
+USER 65532:65532
+
+EXPOSE 8080
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ["/app/kite", "--health-check"] || exit 1
+
+CMD ["./kite"]
