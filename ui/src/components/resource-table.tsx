@@ -318,6 +318,11 @@ export function ResourceTable<T>({
     return table.getSelectedRowModel().rows.map(row => row.original)
   }, [table])
 
+  // Get selected rows count for immediate UI updates
+  const selectedRowsCount = useMemo(() => {
+    return Object.keys(rowSelection).length
+  }, [rowSelection])
+
   // Handle batch action
   const handleBatchAction = useCallback((action: string) => {
     if (onBatchAction && selectedRows.length > 0) {
@@ -531,7 +536,7 @@ export function ResourceTable<T>({
           </div>
 
           {/* Quick Selection Indicator */}
-          {enableRowSelection && selectedRows.length > 0 && (
+          {enableRowSelection && selectedRowsCount > 0 && (
             <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-md border border-blue-200">
               <Button
                 variant="ghost"
@@ -544,7 +549,7 @@ export function ResourceTable<T>({
                 {getSelectionState() === 'some' && <MinusSquare className="w-4 h-4 text-blue-600" />}
               </Button>
               <span className="text-xs text-blue-700 font-medium">
-                已选 {selectedRows.length}
+                已选 {selectedRowsCount}
               </span>
             </div>
           )}
@@ -564,28 +569,7 @@ export function ResourceTable<T>({
       {enableRowSelection && data && (data as T[]).length > 0 && (
         <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
           <div className="flex items-center gap-4">
-            {/* Batch Actions - Always show if batchActions are provided */}
-            {batchActions.length > 0 && (
-              <div className="flex items-center gap-2">
-                {batchActions.map((action) => (
-                  <Button
-                    key={action.action}
-                    variant={action.variant || 'default'}
-                    size="sm"
-                    onClick={() => handleBatchAction(action.action)}
-                    disabled={selectedRows.length === 0}
-                    className={`h-8 ${
-                      action.action === 'restart' 
-                        ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200 disabled:bg-red-25 disabled:text-red-400' 
-                        : ''
-                    }`}
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-              </div>
-            )}
-            
+            {/* 全选当前页按钮在前 */}
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -598,14 +582,36 @@ export function ResourceTable<T>({
                 ) : (
                   <Square className="w-4 h-4 mr-1" />
                 )}
-                全选当前页{selectedRows.length > 0 ? ` (${selectedRows.length})` : ''}
+                全选当前页{selectedRowsCount > 0 ? ` (${selectedRowsCount})` : ''}
               </Button>
             </div>
             
-            {selectedRows.length > 0 && (
+            {/* 批量重启按钮在后 */}
+            {batchActions.length > 0 && (
+              <div className="flex items-center gap-2">
+                {batchActions.map((action) => (
+                  <Button
+                    key={action.action}
+                    variant={action.variant || 'default'}
+                    size="sm"
+                    onClick={() => handleBatchAction(action.action)}
+                    disabled={selectedRowsCount === 0}
+                    className={`h-8 ${
+                      action.action === 'restart' 
+                        ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200 disabled:bg-gray-200 disabled:text-gray-400' 
+                        : ''
+                    }`}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            )}
+            
+            {selectedRowsCount > 0 && (
               <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-md">
                 <span className="text-sm font-medium text-blue-800">
-                  已选择 {selectedRows.length} 项
+                  已选择 {selectedRowsCount} 项
                 </span>
               </div>
             )}
