@@ -588,7 +588,10 @@ export function ResourceTable<T>({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleToggleSelection}
+                onClick={() => {
+                  console.log('🔥 全选按钮 clicked! selectedRowsCount:', selectedRowsCount)
+                  handleToggleSelection()
+                }}
                 className="h-8"
               >
                 {getSelectionState() === 'all' ? (
@@ -608,7 +611,11 @@ export function ResourceTable<T>({
                     key={action.action}
                     variant={action.variant || 'default'}
                     size="sm"
-                    onClick={() => handleBatchAction(action.action)}
+                    onClick={() => {
+                      console.log('🔥 Button clicked!', action.action, 'selectedRowsCount:', selectedRowsCount)
+                      alert(`Button clicked: ${action.label}, selectedRowsCount: ${selectedRowsCount}`)
+                      handleBatchAction(action.action)
+                    }}
                     disabled={selectedRowsCount === 0}
                     className={`h-8 ${
                       action.action === 'restart' 
