@@ -21,7 +21,7 @@ export function PodListPage() {
   const navigate = useNavigate()
   
   // Get namespace from localStorage for initial state
-  const [selectedNamespace, setSelectedNamespace] = useState<string | undefined>(() => {
+  const [selectedNamespace] = useState<string | undefined>(() => {
     const stored = localStorage.getItem('selectedNamespace')
     return stored || 'default'
   })
