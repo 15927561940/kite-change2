@@ -29,6 +29,7 @@ export function DeploymentScaleDialog({
   deployments,
   onConfirm,
 }: DeploymentScaleDialogProps) {
+  const isSingleDeployment = deployments.length === 1
   const [scaleMode, setScaleMode] = useState<'uniform' | 'individual'>('uniform')
   const [uniformReplicas, setUniformReplicas] = useState<string>('')
   const [individualReplicas, setIndividualReplicas] = useState<Record<string, string>>({})
@@ -52,7 +53,17 @@ export function DeploymentScaleDialog({
   const handleConfirm = async () => {
     const scaleRequests: Array<{ deployment: Deployment; replicas: number }> = []
 
-    if (scaleMode === 'uniform') {
+    if (isSingleDeployment) {
+      // Single deployment mode - use uniformReplicas
+      const replicasNum = parseInt(uniformReplicas)
+      if (isNaN(replicasNum) || replicasNum < 0) {
+        alert('请输入有效的副本数（≥0）')
+        return
+      }
+      
+      scaleRequests.push({ deployment: deployments[0], replicas: replicasNum })
+    } else if (scaleMode === 'uniform') {
+      // Batch uniform mode
       const replicasNum = parseInt(uniformReplicas)
       if (isNaN(replicasNum) || replicasNum < 0) {
         alert('请输入有效的副本数（≥0）')
@@ -63,7 +74,7 @@ export function DeploymentScaleDialog({
         scaleRequests.push({ deployment, replicas: replicasNum })
       })
     } else {
-      // Individual mode
+      // Batch individual mode
       let hasError = false
       
       deployments.forEach(deployment => {
@@ -122,10 +133,13 @@ export function DeploymentScaleDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Target className="w-5 h-5 text-blue-500" />
-            批量调整副本数
+            {isSingleDeployment ? '调整副本数' : '批量调整副本数'}
           </DialogTitle>
           <DialogDescription>
-            即将调整 {deployments.length} 个 Deployment 的副本数
+            {isSingleDeployment 
+              ? `调整 ${deployments[0]?.metadata?.name} 的副本数`
+              : `即将调整 ${deployments.length} 个 Deployment 的副本数`
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -133,34 +147,44 @@ export function DeploymentScaleDialog({
           {/* Current status summary */}
           <div className="p-3 bg-blue-50 rounded-md">
             <div className="text-sm font-medium text-blue-800">
-              当前副本数情况：
-              {allSameReplicas ? (
-                <span className="ml-2">所有 Deployment 都是 {minReplicas} 个副本</span>
+              {isSingleDeployment ? (
+                <span>当前副本数：{deployments[0]?.spec?.replicas || 0}</span>
               ) : (
-                <span className="ml-2">副本数范围：{minReplicas} - {maxReplicas}</span>
+                <>
+                  当前副本数情况：
+                  {allSameReplicas ? (
+                    <span className="ml-2">所有 Deployment 都是 {minReplicas} 个副本</span>
+                  ) : (
+                    <span className="ml-2">副本数范围：{minReplicas} - {maxReplicas}</span>
+                  )}
+                </>
               )}
             </div>
           </div>
 
-          {/* Scale mode selection */}
-          <div className="space-y-3">
-            <Label className="text-base font-medium">调整模式</Label>
-            <RadioGroup value={scaleMode} onValueChange={(value: string) => setScaleMode(value as 'uniform' | 'individual')}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="uniform" id="uniform" />
-                <Label htmlFor="uniform" className="font-normal">统一设置 - 所有 Deployment 设为相同副本数</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="individual" id="individual" />
-                <Label htmlFor="individual" className="font-normal">单独设置 - 每个 Deployment 设置不同副本数</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Uniform mode settings */}
-          {scaleMode === 'uniform' && (
+          {/* Scale mode selection - only for batch operations */}
+          {!isSingleDeployment && (
             <div className="space-y-3">
-              <Label htmlFor="uniform-replicas">统一副本数</Label>
+              <Label className="text-base font-medium">调整模式</Label>
+              <RadioGroup value={scaleMode} onValueChange={(value: string) => setScaleMode(value as 'uniform' | 'individual')}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="uniform" id="uniform" />
+                  <Label htmlFor="uniform" className="font-normal">统一设置 - 所有 Deployment 设为相同副本数</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="individual" id="individual" />
+                  <Label htmlFor="individual" className="font-normal">单独设置 - 每个 Deployment 设置不同副本数</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          )}
+
+          {/* Uniform mode settings (for single deployment or batch uniform) */}
+          {(isSingleDeployment || scaleMode === 'uniform') && (
+            <div className="space-y-3">
+              <Label htmlFor="uniform-replicas">
+                {isSingleDeployment ? '目标副本数' : '统一副本数'}
+              </Label>
               <Input
                 id="uniform-replicas"
                 type="number"
@@ -189,8 +213,8 @@ export function DeploymentScaleDialog({
             </div>
           )}
 
-          {/* Individual mode settings */}
-          {scaleMode === 'individual' && (
+          {/* Individual mode settings - only for batch operations */}
+          {!isSingleDeployment && scaleMode === 'individual' && (
             <div className="space-y-3">
               <Label className="text-base">单独设置每个 Deployment</Label>
               <div className="max-h-60 overflow-y-auto space-y-2">
@@ -263,10 +287,10 @@ export function DeploymentScaleDialog({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={isLoading || (scaleMode === 'uniform' && uniformReplicas === '')}
+            disabled={isLoading || ((isSingleDeployment || scaleMode === 'uniform') && uniformReplicas === '')}
             className="bg-blue-600 hover:bg-blue-700"
           >
-            {isLoading ? '调整中...' : '确定调整'}
+            {isLoading ? '调整中...' : (isSingleDeployment ? `确定调整到 ${uniformReplicas || '?'} 个副本` : '确定调整')}
           </Button>
         </DialogFooter>
       </DialogContent>

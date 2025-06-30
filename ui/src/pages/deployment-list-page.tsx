@@ -56,7 +56,27 @@ export function DeploymentListPage() {
           const status = row.original.status
           const ready = status?.readyReplicas || 0
           const desired = status?.replicas || 0
+          
+          return (
+            <div>
+              {ready} / {desired}
+            </div>
+          )
+        },
+      }),
+      columnHelper.accessor('status.conditions', {
+        header: 'Status',
+        cell: ({ row }) => {
           const deployment = row.original
+          const status = getDeploymentStatus(deployment)
+          
+          const handleRestartDeployment = async () => {
+            if (!deployment.metadata?.namespace || !deployment.metadata?.name) return
+            
+            // Show confirmation dialog for single deployment too
+            setDeploymentsToRestart([deployment])
+            setIsRestartDialogOpen(true)
+          }
           
           const handleScaleDeployment = () => {
             setDeploymentsToScale([deployment])
@@ -84,30 +104,6 @@ export function DeploymentListPage() {
                 </Tooltip>
               </TooltipProvider>
               
-              {/* Ready Status */}
-              <div>
-                {ready} / {desired}
-              </div>
-            </div>
-          )
-        },
-      }),
-      columnHelper.accessor('status.conditions', {
-        header: 'Status',
-        cell: ({ row }) => {
-          const deployment = row.original
-          const status = getDeploymentStatus(deployment)
-          
-          const handleRestartDeployment = async () => {
-            if (!deployment.metadata?.namespace || !deployment.metadata?.name) return
-            
-            // Show confirmation dialog for single deployment too
-            setDeploymentsToRestart([deployment])
-            setIsRestartDialogOpen(true)
-          }
-          
-          return (
-            <div className="flex items-center gap-2">
               {/* Rolling Restart Button */}
               <TooltipProvider>
                 <Tooltip>
