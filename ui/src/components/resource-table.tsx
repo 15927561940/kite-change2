@@ -139,36 +139,42 @@ export function ResourceTable<T>({
 
   // Handle toggle selection (select all if none selected, deselect all if any selected)
   const handleToggleSelection = useCallback(() => {
-    const allRows = (data as T[]) || []
     const selectedRowsCount = Object.keys(rowSelection).length
+    console.log('handleToggleSelection called, current selectedRowsCount:', selectedRowsCount)
     
     if (selectedRowsCount === 0) {
-      // Select all rows
+      // Select all rows on current page (we'll update this with table reference later)
       const newSelection: RowSelectionState = {}
-      allRows.forEach((_: T, index: number) => {
-        newSelection[index.toString()] = true
-      })
+      // For now, use a simple approach based on pagination
+      const startIndex = pagination.pageIndex * pagination.pageSize
+      const endIndex = Math.min(startIndex + pagination.pageSize, (data as T[] || []).length)
+      
+      for (let i = startIndex; i < endIndex; i++) {
+        newSelection[i.toString()] = true
+      }
+      console.log('Selecting rows from', startIndex, 'to', endIndex - 1)
       setRowSelection(newSelection)
     } else {
       // Deselect all
+      console.log('Deselecting all rows')
       setRowSelection({})
     }
-  }, [data, rowSelection])
+  }, [rowSelection, pagination, data])
 
   // Get selection state for icons
   const getSelectionState = useCallback(() => {
-    const allRows = (data as T[]) || []
     const selectedRowsCount = Object.keys(rowSelection).length
-    const totalRowsCount = allRows.length
+    // Use current page size for comparison
+    const currentPageSize = Math.min(pagination.pageSize, (data as T[] || []).length - pagination.pageIndex * pagination.pageSize)
     
     if (selectedRowsCount === 0) {
       return 'none'
-    } else if (selectedRowsCount === totalRowsCount) {
+    } else if (selectedRowsCount === currentPageSize) {
       return 'all'
     } else {
       return 'some'
     }
-  }, [data, rowSelection])
+  }, [rowSelection, pagination, data])
 
   // Add namespace column when showing all namespaces and selection column when enabled
   const enhancedColumns: ColumnDef<T, any>[] = useMemo(() => {
@@ -325,12 +331,20 @@ export function ResourceTable<T>({
 
   // Handle batch action
   const handleBatchAction = useCallback((action: string) => {
-    if (onBatchAction && selectedRows.length > 0) {
+    console.log('handleBatchAction called:', action, 'selectedRowsCount:', selectedRowsCount, 'selectedRows:', selectedRows)
+    if (onBatchAction && selectedRowsCount > 0 && selectedRows.length > 0) {
+      console.log('Calling onBatchAction with:', selectedRows.length, 'items')
       onBatchAction(selectedRows, action)
       // Clear selection after action
       setRowSelection({})
+    } else {
+      console.warn('Cannot execute batch action:', {
+        hasOnBatchAction: !!onBatchAction,
+        selectedRowsCount,
+        selectedRowsLength: selectedRows.length
+      })
     }
-  }, [onBatchAction, selectedRows])
+  }, [onBatchAction, selectedRows, selectedRowsCount])
 
   // Render empty state based on condition
   const renderEmptyState = () => {

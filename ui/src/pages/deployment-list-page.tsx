@@ -140,8 +140,10 @@ export function DeploymentListPage() {
 
   // Handle batch actions
   const handleBatchAction = useCallback(async (selectedDeployments: Deployment[], action: string) => {
+    console.log('Deployment handleBatchAction called:', action, 'selectedDeployments:', selectedDeployments.length)
     if (action === 'restart') {
       // Show confirmation dialog
+      console.log('Setting deployments to restart:', selectedDeployments.map(d => d.metadata?.name))
       setDeploymentsToRestart(selectedDeployments)
       setIsRestartDialogOpen(true)
     }

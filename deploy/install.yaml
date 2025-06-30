@@ -38,7 +38,7 @@ spec:
     spec:
       serviceAccountName: kite
       containers:
-        - image: registry.cn-hongkong.aliyuncs.com/bobo-k8s-01/kite-cursor:v0.9.26
+        - image: registry.cn-hongkong.aliyuncs.com/bobo-k8s-01/kite-cursor:v0.9.27
           imagePullPolicy: Always
           name: kite
           resources:

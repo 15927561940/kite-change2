@@ -144,6 +144,7 @@ export function PodListPage() {
 
   // Handle batch actions
   const handleBatchAction = useCallback(async (selectedPods: Pod[], action: string) => {
+    console.log('Pod handleBatchAction called:', action, 'selectedPods:', selectedPods.length)
     if (action === 'restart') {
       try {
         const podList = selectedPods.map(pod => ({
@@ -151,6 +152,7 @@ export function PodListPage() {
           name: pod.metadata!.name!
         }))
         
+        console.log('Calling restartPodsBatch with:', podList)
         await restartPodsBatch(podList)
         console.log(`Batch restart triggered for ${podList.length} pods`)
         // Reload the page to show updated status
