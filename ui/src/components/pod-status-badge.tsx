@@ -249,7 +249,7 @@ export function PodStatusBadge({
 
   return (
     <TooltipProvider>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-center gap-2">
         {/* Enhanced Status Badge with Comprehensive Tooltip */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -355,7 +355,7 @@ export function PodStatusBadge({
         )}
 
         {/* Action Buttons - Better Aligned */}
-        <div className="flex items-center">
+        <div className="flex items-center justify-center">
           {/* Restart Button */}
           {showRestartButton && onRestartPod && (
             <Tooltip>
