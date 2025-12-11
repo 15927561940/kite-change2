@@ -75,10 +75,14 @@ export function PodListPage() {
           const handleViewLogs = () => {
             navigate(`/pods/${pod.metadata?.namespace}/${pod.metadata?.name}?tab=logs`)
           }
-          
+
+          const handleOpenTerminal = () => {
+            navigate(`/pods/${pod.metadata?.namespace}/${pod.metadata?.name}?tab=terminal`)
+          }
+
           const handleRestartPod = async () => {
             if (!pod.metadata?.namespace || !pod.metadata?.name) return
-            
+
             try {
               await restartPod(pod.metadata.namespace, pod.metadata.name)
               console.log(`Pod ${pod.metadata.name} restart triggered successfully`)
@@ -88,15 +92,17 @@ export function PodListPage() {
               console.error('Failed to restart pod:', error)
             }
           }
-          
+
           return (
-            <PodStatusBadge 
+            <PodStatusBadge
               pod={pod}
               showHistoryButton={true}
               showLogsButton={true}
               showRestartButton={true}
+              showTerminalButton={true}
               onViewLogs={handleViewLogs}
               onRestartPod={handleRestartPod}
+              onOpenTerminal={handleOpenTerminal}
             />
           )
         },

@@ -95,19 +95,38 @@ make deps
 - Authentication via JWT tokens or OAuth
 - Resource operations follow Kubernetes API patterns
 
+**Standard Resource Routes:**
+```
+/api/v1/{resource}                    # List all (cluster-scoped)
+/api/v1/{resource}/_all               # List all (namespaced)
+/api/v1/{resource}/_all/{name}        # Get cluster-scoped resource
+/api/v1/{resource}/{namespace}        # List in namespace
+/api/v1/{resource}/{namespace}/{name} # Get namespaced resource
+```
+
+**CRD Resource Routes:**
+```
+/api/v1/{crd}/{namespace}/{name}/related  # Get related resources
+/api/v1/{crd}/{namespace}/{name}/events   # Get CR events
+/api/v1/{crd}/{namespace}/{name}/restart  # Restart CR (adds annotation)
+/api/v1/{crd}/{namespace}/{name}/scale    # Scale CR (updates replicas)
+```
+
 ### State Management
 - Frontend uses React Query for server state
 - Context providers for auth (`contexts/auth-context.tsx`)
 - Global search provider for resource search
 
 ### Resource Management
-- Generic resource handlers support all Kubernetes resource types
+- **Generic Handler Pattern**: Uses Go generics (`GenericResourceHandler[T, V]`) for type-safe CRUD operations across all resource types
+- **Dynamic CRD Support**: CRD handler uses `unstructured.Unstructured` to support any custom resource without code changes
 - **Enhanced Custom Resource Definition (CRD) support**:
   - Full CRD detail pages with deployment-like functionality
-  - Related resource discovery (pods, services)
+  - Related resource discovery (pods, services) via label matching
   - Scale and restart operations for CRs with replicas
   - Events tracking for custom resources
   - Complete YAML editing, logs, terminal, and monitoring
+- **Pluggable Search**: Resource-specific search functions registered via `RegisterSearchFunc()`
 - YAML editing with validation via Monaco editor
 - Real-time log streaming and web terminal access
 
@@ -118,7 +137,15 @@ Key environment variables for development:
 - `PROMETHEUS_URL`: Prometheus server URL for metrics
 - `JWT_SECRET`: JWT signing secret
 - `OAUTH_ENABLED`: Enable OAuth authentication
+- `OAUTH_PROVIDERS`: Comma-separated list of enabled OAuth providers
+- `OAUTH_ALLOW_USERS`: Whitelist of allowed users (supports wildcard `*` for all)
+- `{PROVIDER}_CLIENT_ID`, `{PROVIDER}_CLIENT_SECRET`: OAuth provider credentials (e.g., GITHUB_CLIENT_ID)
+- `{PROVIDER}_REDIRECT_URL`: OAuth callback URL
 - `KITE_USERNAME`/`KITE_PASSWORD`: Basic auth credentials
+- `ENABLE_ANALYTICS`: Enable anonymous usage analytics (default: false)
+- `DISABLE_CACHE`: Disable controller-runtime cache for testing (default: false)
+- `READONLY`: Enable read-only mode (blocks POST/PUT/DELETE) (default: false)
+- `NODE_TERMINAL_IMAGE`: Image for node terminal pods (default: busybox:latest)
 
 ### Dependencies
 - Backend: Gin, Kubernetes client-go, Prometheus client
@@ -132,6 +159,29 @@ Key environment variables for development:
 - Static files are embedded in Go binary via `//go:embed static`
 - Uses structured logging with klog
 - Supports both in-cluster and external kubeconfig authentication
+
+### Kubernetes Client Initialization
+The application tries in-cluster config first (when running in a pod), then falls back to kubeconfig file. The client uses controller-runtime's cached client for better performance (can be disabled with `DISABLE_CACHE=true`).
+
+### Adding New Resource Types
+1. Create a new handler in `pkg/handlers/resources/` using `GenericResourceHandler[T, V]`
+2. Register in `pkg/handlers/resources/register.go` using `RegisterResource()`
+3. Optional: Implement custom routes via `registerCustomRoutes()` method
+4. Optional: Add search support via `RegisterSearchFunc()`
+
+### OAuth Provider Configuration
+- Built-in support for GitHub OAuth
+- Generic OAuth provider supports any OAuth2-compliant provider
+- Set environment variables: `{PROVIDER}_CLIENT_ID`, `{PROVIDER}_CLIENT_SECRET`, `{PROVIDER}_AUTH_URL`, `{PROVIDER}_TOKEN_URL`, `{PROVIDER}_USER_INFO_URL`
+- Add provider name to `OAUTH_PROVIDERS` comma-separated list
+
+### Authentication Flow
+1. Client requests `/api/auth/providers` to get available providers
+2. Client initiates login with `/api/auth/login?provider=github`
+3. Server returns `auth_url` (OAuth provider's authorization endpoint)
+4. OAuth provider redirects to `/api/auth/callback?code=...`
+5. Server exchanges code for token and generates JWT
+6. JWT stored in HTTP-only cookie (falls back to Authorization header)
 
 ## CRD Enhancement Details
 
@@ -208,3 +258,22 @@ Key environment variables for development:
 - Frontend build output is embedded in Go binary via `//go:embed static`
 - Production builds serve everything from a single binary
 - Development mode runs frontend and backend separately (backend on 8080, frontend on 5173)
+
+## Deployment Architecture
+
+### Docker Build
+Multi-stage Dockerfile:
+1. **Frontend builder**: Node 20 Alpine, installs pnpm, builds React app
+2. **Backend builder**: Go 1.24 Alpine, builds Go binary with embedded static assets
+3. **Runtime**: distroless/static:nonroot (minimal, secure base image)
+
+### Kubernetes Deployment
+- Deployed as single Deployment in `kube-system` namespace
+- Requires ClusterRole binding for full cluster access (uses `cluster-admin` role)
+- ServiceAccount: `kite` in `kube-system`
+- Resource limits: 100m-1000m CPU, 128Mi-512Mi memory
+- Access via `kubectl port-forward -n kube-system svc/kite 8080:80`
+
+### In-Cluster vs External
+- **In-cluster**: Uses ServiceAccount token automatically, no kubeconfig needed
+- **External**: Reads from `~/.kube/config` or `KUBECONFIG` environment variable

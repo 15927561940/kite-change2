@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconHistory, IconAlertTriangle, IconEye, IconServer, IconRefresh, IconReload } from '@tabler/icons-react'
+import { IconHistory, IconAlertTriangle, IconEye, IconServer, IconRefresh, IconReload, IconTerminal2 } from '@tabler/icons-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,17 +26,21 @@ interface PodStatusBadgeProps {
   showHistoryButton?: boolean
   showLogsButton?: boolean
   showRestartButton?: boolean
+  showTerminalButton?: boolean
   onViewLogs?: () => void
   onRestartPod?: () => void
+  onOpenTerminal?: () => void
 }
 
-export function PodStatusBadge({ 
-  pod, 
+export function PodStatusBadge({
+  pod,
   showHistoryButton = true,
   showLogsButton = true,
   showRestartButton = true,
+  showTerminalButton = true,
   onViewLogs,
-  onRestartPod
+  onRestartPod,
+  onOpenTerminal
 }: PodStatusBadgeProps) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const { data: podHistory, isLoading } = usePodHistory(
@@ -390,6 +394,25 @@ export function PodStatusBadge({
               </TooltipTrigger>
               <TooltipContent>
                 <div className="text-xs font-medium text-slate-700">查看实时日志</div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Terminal Button */}
+          {showTerminalButton && onOpenTerminal && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onOpenTerminal}
+                  className="h-7 w-7 p-0 hover:bg-green-100 hover:text-green-700"
+                >
+                  <IconTerminal2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-xs font-medium text-slate-700">进入容器终端</div>
               </TooltipContent>
             </Tooltip>
           )}

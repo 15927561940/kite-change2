@@ -97,10 +97,14 @@ export function PodTable(props: {
           const handleViewLogs = () => {
             navigate(`/pods/${pod.metadata?.namespace}/${pod.metadata?.name}?tab=logs`)
           }
-          
+
+          const handleOpenTerminal = () => {
+            navigate(`/pods/${pod.metadata?.namespace}/${pod.metadata?.name}?tab=terminal`)
+          }
+
           const handleRestartPod = async () => {
             if (!pod.metadata?.namespace || !pod.metadata?.name) return
-            
+
             try {
               await restartPod(pod.metadata.namespace, pod.metadata.name)
               // Optionally show success notification
@@ -114,15 +118,17 @@ export function PodTable(props: {
               // Optionally show error notification
             }
           }
-          
+
           return (
-            <PodStatusBadge 
+            <PodStatusBadge
               pod={pod}
               showHistoryButton={true}
               showLogsButton={true}
               showRestartButton={true}
+              showTerminalButton={true}
               onViewLogs={handleViewLogs}
               onRestartPod={handleRestartPod}
+              onOpenTerminal={handleOpenTerminal}
             />
           )
         },
