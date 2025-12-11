@@ -1310,14 +1310,78 @@ export const scaleRestartDeploymentsBatch = async (
     const requestBody: { deployments: Array<{ namespace: string; name: string }>; finalReplicas?: number } = {
       deployments
     }
-    
+
     if (finalReplicas !== undefined) {
       requestBody.finalReplicas = finalReplicas
     }
-    
+
     await apiClient.post('/deployments/batch/scale-restart', requestBody)
   } catch (error) {
     console.error('Failed to scale-restart deployments batch:', error)
     throw error
   }
+}
+
+// ============================================
+// Node Management APIs
+// ============================================
+
+// Get node events
+export const fetchNodeEvents = async (nodeName: string): Promise<any[]> => {
+  try {
+    return await apiClient.get(`/nodes/_all/${nodeName}/events`)
+  } catch (error) {
+    console.error('Failed to fetch node events:', error)
+    throw error
+  }
+}
+
+// Restart kubelet on a node
+export const restartKubelet = async (nodeName: string): Promise<{ message: string; pod: string }> => {
+  try {
+    return await apiClient.post(`/nodes/_all/${nodeName}/restart-kubelet`, {})
+  } catch (error) {
+    console.error('Failed to restart kubelet:', error)
+    throw error
+  }
+}
+
+// Restart kube-proxy on a node
+export const restartKubeProxy = async (nodeName: string): Promise<{ message: string; pod: string }> => {
+  try {
+    return await apiClient.post(`/nodes/_all/${nodeName}/restart-kubeproxy`, {})
+  } catch (error) {
+    console.error('Failed to restart kube-proxy:', error)
+    throw error
+  }
+}
+
+// Get containerd config from a node
+export const getContainerdConfig = async (nodeName: string): Promise<{ message: string; pod: string; note: string }> => {
+  try {
+    return await apiClient.get(`/nodes/_all/${nodeName}/containerd-config`)
+  } catch (error) {
+    console.error('Failed to get containerd config:', error)
+    throw error
+  }
+}
+
+// Get CNI config from a node
+export const getCNIConfig = async (nodeName: string): Promise<{ message: string; pod: string; note: string }> => {
+  try {
+    return await apiClient.get(`/nodes/_all/${nodeName}/cni-config`)
+  } catch (error) {
+    console.error('Failed to get CNI config:', error)
+    throw error
+  }
+}
+
+// React Query hook for node events
+export const useNodeEvents = (nodeName: string) => {
+  return useQuery({
+    queryKey: ['node-events', nodeName],
+    queryFn: () => fetchNodeEvents(nodeName),
+    enabled: !!nodeName,
+    staleTime: 30000,
+  })
 }

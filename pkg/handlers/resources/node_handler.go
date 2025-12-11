@@ -4,13 +4,31 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"sort"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/kube"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// getNodeOperationImage returns the image to use for node operations
+// It uses NODE_OPERATION_IMAGE env var if set, otherwise falls back to NODE_TERMINAL_IMAGE
+func getNodeOperationImage() string {
+	if image := os.Getenv("NODE_OPERATION_IMAGE"); image != "" {
+		return image
+	}
+	if image := os.Getenv("NODE_TERMINAL_IMAGE"); image != "" {
+		return image
+	}
+	// Default to alpine which has nsenter
+	return "alpine:latest"
+}
 
 type NodeHandler struct {
 	*GenericResourceHandler[*corev1.Node, *corev1.NodeList]
@@ -239,10 +257,332 @@ func (h *NodeHandler) UntaintNode(c *gin.Context) {
 	})
 }
 
+// GetNodeEvents retrieves events related to a specific node
+func (h *NodeHandler) GetNodeEvents(c *gin.Context) {
+	nodeName := c.Param("name")
+	ctx := c.Request.Context()
+
+	// Get all events and filter by node name
+	eventList := &corev1.EventList{}
+	err := h.K8sClient.Client.List(ctx, eventList)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch events: " + err.Error()})
+		return
+	}
+
+	// Filter events related to this node
+	var nodeEvents []corev1.Event
+	for _, event := range eventList.Items {
+		if event.InvolvedObject.Kind == "Node" && event.InvolvedObject.Name == nodeName {
+			nodeEvents = append(nodeEvents, event)
+		}
+	}
+
+	// Sort events by last timestamp (most recent first)
+	sort.Slice(nodeEvents, func(i, j int) bool {
+		return nodeEvents[i].LastTimestamp.After(nodeEvents[j].LastTimestamp.Time)
+	})
+
+	c.JSON(http.StatusOK, nodeEvents)
+}
+
+// RestartKubelet restarts the kubelet service on a node
+func (h *NodeHandler) RestartKubelet(c *gin.Context) {
+	nodeName := c.Param("name")
+	ctx := c.Request.Context()
+
+	// Verify node exists
+	var node corev1.Node
+	if err := h.K8sClient.Client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Node not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Create a pod to restart kubelet on the node
+	restartPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("restart-kubelet-%s-%d", nodeName, time.Now().Unix()),
+			Namespace: "kube-system",
+			Labels: map[string]string{
+				"app":  "kite-node-restart",
+				"type": "kubelet",
+				"node": nodeName,
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName:      nodeName,
+			HostPID:       true,
+			HostNetwork:   true,
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:  "restart-kubelet",
+					Image: getNodeOperationImage(),
+					Command: []string{
+						"nsenter",
+						"--target", "1",
+						"--mount",
+						"--uts",
+						"--ipc",
+						"--net",
+						"--pid",
+						"--",
+						"sh", "-c",
+						"systemctl stop kubelet && sleep 3 && systemctl start kubelet",
+					},
+					SecurityContext: &corev1.SecurityContext{
+						Privileged: func() *bool { b := true; return &b }(),
+					},
+				},
+			},
+			Tolerations: []corev1.Toleration{
+				{
+					Operator: corev1.TolerationOpExists,
+				},
+			},
+		},
+	}
+
+	if err := h.K8sClient.Client.Create(ctx, restartPod); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create restart pod: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Kubelet restart initiated on node %s", nodeName),
+		"pod":     restartPod.Name,
+	})
+}
+
+// RestartKubeProxy restarts the kube-proxy on a node
+func (h *NodeHandler) RestartKubeProxy(c *gin.Context) {
+	nodeName := c.Param("name")
+	ctx := c.Request.Context()
+
+	// Verify node exists
+	var node corev1.Node
+	if err := h.K8sClient.Client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Node not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Find and delete the kube-proxy pod on this node
+	podList := &corev1.PodList{}
+	err := h.K8sClient.Client.List(ctx, podList, client.InNamespace("kube-system"))
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list kube-proxy pods: " + err.Error()})
+		return
+	}
+
+	// Find the kube-proxy pod on this specific node
+	var targetPod *corev1.Pod
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		// Check if it's a kube-proxy pod on this node
+		if pod.Spec.NodeName == nodeName {
+			// Check labels to identify kube-proxy
+			if labels := pod.Labels; labels != nil {
+				if labels["k8s-app"] == "kube-proxy" || labels["component"] == "kube-proxy" {
+					targetPod = pod
+					break
+				}
+			}
+		}
+	}
+
+	if targetPod == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("kube-proxy pod not found on node %s", nodeName)})
+		return
+	}
+
+	// Delete the pod to trigger restart
+	if err := h.K8sClient.Client.Delete(ctx, targetPod); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete kube-proxy pod: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("kube-proxy restart initiated on node %s", nodeName),
+		"pod":     targetPod.Name,
+	})
+}
+
+// GetContainerdConfig retrieves the containerd configuration from a node
+func (h *NodeHandler) GetContainerdConfig(c *gin.Context) {
+	nodeName := c.Param("name")
+	ctx := c.Request.Context()
+
+	// Verify node exists
+	var node corev1.Node
+	if err := h.K8sClient.Client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Node not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Create a pod to read containerd config
+	configPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("read-containerd-config-%s-%d", nodeName, time.Now().Unix()),
+			Namespace: "kube-system",
+			Labels: map[string]string{
+				"app":  "kite-node-config",
+				"type": "containerd",
+				"node": nodeName,
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName:      nodeName,
+			HostPID:       true,
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:  "read-config",
+					Image: getNodeOperationImage(),
+					Command: []string{
+						"cat",
+						"/host/etc/containerd/config.toml",
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "host-etc",
+							MountPath: "/host/etc",
+							ReadOnly:  true,
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "host-etc",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/etc",
+						},
+					},
+				},
+			},
+			Tolerations: []corev1.Toleration{
+				{
+					Operator: corev1.TolerationOpExists,
+				},
+			},
+		},
+	}
+
+	if err := h.K8sClient.Client.Create(ctx, configPod); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create config reader pod: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Containerd config retrieval initiated",
+		"pod":     configPod.Name,
+		"note":    "Use pod logs to view the configuration",
+	})
+}
+
+// GetCNIConfig retrieves the CNI configuration from a node
+func (h *NodeHandler) GetCNIConfig(c *gin.Context) {
+	nodeName := c.Param("name")
+	ctx := c.Request.Context()
+
+	// Verify node exists
+	var node corev1.Node
+	if err := h.K8sClient.Client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Node not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Create a pod to read CNI config
+	configPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("read-cni-config-%s-%d", nodeName, time.Now().Unix()),
+			Namespace: "kube-system",
+			Labels: map[string]string{
+				"app":  "kite-node-config",
+				"type": "cni",
+				"node": nodeName,
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName:      nodeName,
+			HostPID:       true,
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:  "read-config",
+					Image: getNodeOperationImage(),
+					Command: []string{
+						"sh",
+						"-c",
+						"ls -la /host/etc/cni/net.d/ && cat /host/etc/cni/net.d/*.conf* 2>/dev/null || echo 'No CNI config found'",
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "host-cni",
+							MountPath: "/host/etc/cni",
+							ReadOnly:  true,
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "host-cni",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: "/etc/cni",
+						},
+					},
+				},
+			},
+			Tolerations: []corev1.Toleration{
+				{
+					Operator: corev1.TolerationOpExists,
+				},
+			},
+		},
+	}
+
+	if err := h.K8sClient.Client.Create(ctx, configPod); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create config reader pod: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "CNI config retrieval initiated",
+		"pod":     configPod.Name,
+		"note":    "Use pod logs to view the configuration",
+	})
+}
+
 func (h *NodeHandler) registerCustomRoutes(group *gin.RouterGroup) {
 	group.POST("/_all/:name/drain", h.DrainNode)
 	group.POST("/_all/:name/cordon", h.CordonNode)
 	group.POST("/_all/:name/uncordon", h.UncordonNode)
 	group.POST("/_all/:name/taint", h.TaintNode)
 	group.POST("/_all/:name/untaint", h.UntaintNode)
+	group.GET("/_all/:name/events", h.GetNodeEvents)
+	group.POST("/_all/:name/restart-kubelet", h.RestartKubelet)
+	group.POST("/_all/:name/restart-kubeproxy", h.RestartKubeProxy)
+	group.GET("/_all/:name/containerd-config", h.GetContainerdConfig)
+	group.GET("/_all/:name/cni-config", h.GetCNIConfig)
 }
